@@ -1,0 +1,9 @@
+fn main() {
+    println!("test");
+}
+
+// FIXME: make every enum have an "orid" function
+// FIXME: make enums special types
+// FIXME: make a trait for enums that have no values, and just variants
+// FIXME: (maybe) add mutability inference - at least for local variables
+// FIXME: make functions const by default and add possibility to add non-const modifiers
