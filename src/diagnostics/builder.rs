@@ -5,7 +5,7 @@ use crate::diagnostics::span::Span;
 #[derive(Debug)]
 pub struct DiagnosticSubBuilder<'sup> {
     sup: &'sup mut DiagnosticBuilder,
-    input: String, // FIXME: add multiline support
+    input: String,
     items: Vec<DiagnosticItem>,
 }
 

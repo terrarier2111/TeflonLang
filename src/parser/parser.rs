@@ -1,12 +1,13 @@
-use crate::parser::token::Token;
+use crate::lexer::token::Token;
+use crate::parser::token_stream::TokenStream;
 
 pub struct Parser {
-    tokens: Vec<Token>,
-    cursor: usize,
+    token_stream: TokenStream,
+
 }
 
 impl Parser {
 
-
+    // FIXME: see: https://www.youtube.com/watch?v=4m7ubrdbWQU
 
 }

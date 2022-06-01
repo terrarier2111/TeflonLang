@@ -8,17 +8,23 @@ pub enum TokenType {
     Operator,
     StrLit,
     NumLit,
-    Comma,
-    OpenParen,
-    ClosedParen,
-    OpenCurly,
-    ClosedCurly,
-    OpenBracket,
-    ClosedBracket,
-    Eq,
-    Colon,
-    Semi,
-    Apostrophe,
+    Comma, // ,
+    OpenParen, // (
+    ClosedParen, // )
+    OpenCurly, // {
+    ClosedCurly, // }
+    OpenBracket, // [
+    ClosedBracket, // ]
+    Eq, // =
+    Colon, // :
+    Semi, // ;
+    Apostrophe, // "
+    OpenTriangle, // <
+    ClosedTriangle, // >
+    Hashtag, // #
+    Star, // *
+    Comment,
+    EOF, // end of file
     Invalid,
 }
 
@@ -53,25 +59,9 @@ pub enum Token {
     Hashtag(SingleTokenSpan), // #
     Star(SingleTokenSpan), // *
     Comment(Span, String),
+    EOF(SingleTokenSpan), // end of file
     Invalid(SingleTokenSpan, char),
 }
-
-/*
-enum Bewegungsmittel {
-    Flugzeug(u32, f64, u32), // turbinen, flügellänge, sitze
-    Beine(u8, f64), // anzahl, länge
-}
-
-impl Bewegungsmittel {
-
-    fn geschwindigkeit(&self) -> f64 {
-        match self {
-            Bewegungsmittel::Flugzeug(turb, flug, _) => (*turb) as f64 * *flug,
-            Bewegungsmittel::Beine(anz, lang) => (*anz) as f64 * *lang,
-        }
-    }
-
-}*/
 
 impl Token {
 
@@ -99,6 +89,35 @@ impl Token {
             Token::Hashtag(sp) => Span::single_token(sp.0),
             Token::Star(sp) => Span::single_token(sp.0),
             Token::Comment(sp, _) => *sp,
+            Token::EOF(sp) => Span::single_token(sp.0),
+        }
+    }
+
+    pub fn to_type(&self) -> TokenType {
+        match self {
+            Token::Ident(_, _) => TokenType::Ident,
+            Token::Keyword(_, _) => TokenType::Keyword,
+            Token::Operator(_, _) => TokenType::Operator,
+            Token::StrLit(_, _) => TokenType::StrLit,
+            Token::NumLit(_, _) => TokenType::NumLit,
+            Token::Comma(_) => TokenType::Comma,
+            Token::OpenParen(_) => TokenType::OpenParen,
+            Token::ClosedParen(_) => TokenType::ClosedParen,
+            Token::OpenCurly(_) => TokenType::OpenCurly,
+            Token::ClosedCurly(_) => TokenType::ClosedCurly,
+            Token::OpenBracket(_) => TokenType::OpenBracket,
+            Token::ClosedBracket(_) => TokenType::ClosedBracket,
+            Token::Eq(_) => TokenType::Eq,
+            Token::Colon(_) => TokenType::Colon,
+            Token::Semi(_) => TokenType::Semi,
+            Token::Apostrophe(_) => TokenType::Apostrophe,
+            Token::OpenTriangle(_) => TokenType::OpenTriangle,
+            Token::ClosedTriangle(_) => TokenType::ClosedTriangle,
+            Token::Hashtag(_) => TokenType::Hashtag,
+            Token::Star(_) => TokenType::Star,
+            Token::Comment(_, _) => TokenType::Comment,
+            Token::Invalid(_, _) => TokenType::Invalid,
+            Token::EOF(_) => TokenType::EOF,
         }
     }
 

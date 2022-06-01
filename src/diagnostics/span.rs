@@ -29,9 +29,17 @@ impl Span {
         }
     }
 
-    fn shrink_hi(&mut self) -> Result<(), ShrinkHiError> {
+    pub fn shrink_hi(&mut self) -> Result<(), ShrinkHiError> {
         if self.start == self.end {
             return Err(ShrinkHiError(self.start));
+        }
+        self.end = self.end - 1;
+        Ok(())
+    }
+
+    pub fn shrink_lo(&mut self) -> Result<(), ShrinkLoError> {
+        if self.start == self.end {
+            return Err(ShrinkLoError(self.end));
         }
         self.end = self.end - 1;
         Ok(())
@@ -107,3 +115,25 @@ impl Display for ShrinkHiError {
 }
 
 impl Error for ShrinkHiError {}
+
+struct ShrinkLoError(usize);
+
+impl Debug for ShrinkLoError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("tried to shrink a span ending at ")?;
+        let end = self.0.to_string();
+        let end = end.as_str();
+        f.write_str(end)?;
+        f.write_str(" above its end")
+    }
+}
+
+impl Display for ShrinkLoError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let dbg = format!("{:?}", self);
+        f.write_str(dbg.as_str())
+    }
+}
+
+impl Error for ShrinkLoError {}
+

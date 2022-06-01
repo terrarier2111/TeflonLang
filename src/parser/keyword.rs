@@ -1,4 +1,4 @@
-use crate::parser::keyword::Keyword::{Else, Enum, Fn, For, If, Impl, In, Let, Loop, Match, Mod, Mut, Pub, Rt, SelfLower, SelfUpper, Static, Struct, While};
+use crate::parser::keyword::Keyword::{Else, Enum, Fn, For, If, Impl, In, Let, Loop, Match, Mod, Mut, Pub, Rt, SelfLower, SelfUpper, Static, Struct, Trait, Type, While};
 
 pub enum Keyword {
     Pub,
@@ -23,6 +23,8 @@ pub enum Keyword {
     Async,
     Unsafe,
     Extern,
+    Trait,
+    Type,
     // FIXME: there should be a couple of other keywords missing here
 }
 
@@ -49,6 +51,8 @@ impl Keyword {
             "while" => Some(While),
             "loop" => Some(Loop),
             "in" => Some(In),
+            "trait" => Some(Trait),
+            "type" => Some(Type),
             _ => None,
         }
     }

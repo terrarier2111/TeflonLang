@@ -1,10 +1,12 @@
 use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{SingleTokenSpan, Span};
+use crate::lexer::token::Token;
 use crate::parser::keyword::Keyword;
-use crate::parser::token::{Token, TokenType};
+
+pub mod token;
 
 pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
-    let mut diagnostics_builder = DiagnosticBuilder::new(); // FIXME: add multiline support!
+    let mut diagnostics_builder = DiagnosticBuilder::new();
     let mut tokens = vec![];
 
     // let mut last = None;
@@ -117,6 +119,16 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
             '<' => curr_token = Some(Token::OpenTriangle(SingleTokenSpan::new(x.0))),
             '>' => curr_token = Some(Token::ClosedTriangle(SingleTokenSpan::new(x.0))),
             '#' => curr_token = Some(Token::Hashtag(SingleTokenSpan::new(x.0))),
+            '.' => {
+                if buffer_type == BufferType::StrLit || (buffer_type == BufferType::NumLit &&
+                    buffer.map_or(false, |buffer| !buffer.contains(&'.') && !buffer.is_empty())) {
+                    if let Some(buffer) = &mut buffer {
+                        buffer.push('.');
+                    }
+                } else {
+                    // FIXME: error!
+                }
+            },
             _ => curr_token = Some(Token::Invalid(SingleTokenSpan::new(x.0), x.1)),
         }
         if let Some(token) = curr_token.take() {
