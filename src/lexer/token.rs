@@ -18,11 +18,15 @@ pub enum TokenType {
     Eq, // =
     Colon, // :
     Semi, // ;
-    Apostrophe, // "
-    OpenTriangle, // <
-    ClosedTriangle, // >
+    Apostrophe, // '
+    Quote, // "
+    OpenAngle, // <
+    ClosedAngle, // >
     Hashtag, // #
     Star, // *
+    Dot, // .
+    Question, // ?
+    Underscore, // _
     Comment,
     EOF, // end of file
     Invalid,
@@ -30,7 +34,7 @@ pub enum TokenType {
 
 impl TokenType {
 
-    pub fn is_buffered_token(&self) -> bool {
+    pub fn is_buffered_token(&self) -> bool { // FIXME: do we even need this method?
          matches!(self, TokenType::NumLit | TokenType::StrLit | TokenType::Ident | TokenType::Keyword)
     }
 
@@ -53,11 +57,15 @@ pub enum Token {
     Eq(SingleTokenSpan), // =
     Colon(SingleTokenSpan), // :
     Semi(SingleTokenSpan), // ;
-    Apostrophe(SingleTokenSpan), // "
-    OpenTriangle(SingleTokenSpan), // <
-    ClosedTriangle(SingleTokenSpan), // >
+    Apostrophe(SingleTokenSpan), // '
+    Quote(SingleTokenSpan), // "
+    OpenAngle(SingleTokenSpan), // <
+    ClosedAngle(SingleTokenSpan), // >
     Hashtag(SingleTokenSpan), // #
     Star(SingleTokenSpan), // *
+    Dot(SingleTokenSpan), // .
+    Question(SingleTokenSpan), // ?
+    Underscore(SingleTokenSpan), // _
     Comment(Span, String),
     EOF(SingleTokenSpan), // end of file
     Invalid(SingleTokenSpan, char),
@@ -84,10 +92,14 @@ impl Token {
             Token::Semi(sp) => Span::single_token(sp.0),
             Token::Invalid(sp, _) => Span::single_token(sp.0),
             Token::Apostrophe(sp) => Span::single_token(sp.0),
-            Token::OpenTriangle(sp) => Span::single_token(sp.0),
-            Token::ClosedTriangle(sp) => Span::single_token(sp.0),
+            Token::Quote(sp) => Span::single_token(sp.0),
+            Token::OpenAngle(sp) => Span::single_token(sp.0),
+            Token::ClosedAngle(sp) => Span::single_token(sp.0),
             Token::Hashtag(sp) => Span::single_token(sp.0),
             Token::Star(sp) => Span::single_token(sp.0),
+            Token::Dot(sp) => Span::single_token(sp.0),
+            Token::Question(sp) => Span::single_token(sp.0),
+            Token::Underscore(sp) => Span::single_token(sp.0),
             Token::Comment(sp, _) => *sp,
             Token::EOF(sp) => Span::single_token(sp.0),
         }
@@ -111,10 +123,14 @@ impl Token {
             Token::Colon(_) => TokenType::Colon,
             Token::Semi(_) => TokenType::Semi,
             Token::Apostrophe(_) => TokenType::Apostrophe,
-            Token::OpenTriangle(_) => TokenType::OpenTriangle,
-            Token::ClosedTriangle(_) => TokenType::ClosedTriangle,
+            Token::Quote(_) => TokenType::Quote,
+            Token::OpenAngle(_) => TokenType::OpenAngle,
+            Token::ClosedAngle(_) => TokenType::ClosedAngle,
             Token::Hashtag(_) => TokenType::Hashtag,
             Token::Star(_) => TokenType::Star,
+            Token::Dot(_) => TokenType::Dot,
+            Token::Question(_) => TokenType::Question,
+            Token::Underscore(_) => TokenType::Underscore,
             Token::Comment(_, _) => TokenType::Comment,
             Token::Invalid(_, _) => TokenType::Invalid,
             Token::EOF(_) => TokenType::EOF,

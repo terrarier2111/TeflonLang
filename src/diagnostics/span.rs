@@ -95,7 +95,7 @@ pub trait GenericSpan {
 
 }
 
-struct ShrinkHiError(usize);
+pub struct ShrinkHiError(usize);
 
 impl Debug for ShrinkHiError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -116,7 +116,7 @@ impl Display for ShrinkHiError {
 
 impl Error for ShrinkHiError {}
 
-struct ShrinkLoError(usize);
+pub struct ShrinkLoError(usize);
 
 impl Debug for ShrinkLoError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

@@ -1,5 +1,6 @@
 use crate::parser::keyword::Keyword::{Else, Enum, Fn, For, If, Impl, In, Let, Loop, Match, Mod, Mut, Pub, Rt, SelfLower, SelfUpper, Static, Struct, Trait, Type, While};
 
+#[derive(Debug)]
 pub enum Keyword {
     Pub,
     Static,

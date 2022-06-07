@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::mem;
 use crate::diagnostics::span::Span;
+use colored::Colorize;
 
 #[derive(Debug)]
 pub struct DiagnosticSubBuilder<'sup> {
@@ -81,7 +83,8 @@ impl<'sup> DiagnosticSubBuilder<'sup> {
         self.items.is_empty()
     }
 
-    pub fn build(mut self) -> &'sup mut DiagnosticBuilder {
+    pub fn build(/*mut */mut self) -> &'sup mut DiagnosticBuilder {
+        self.sup.parts.push(DiagnosticPart::new(self.input.clone(), self.items.clone()));
         self.sup
     }
 
@@ -97,11 +100,12 @@ impl Display for DiagnosticSubBuilder<'_> {
     }
 }
 
+/*
 impl Drop for DiagnosticSubBuilder<'_> {
     fn drop(&mut self) {
         self.sup.parts.push(DiagnosticPart::new(self.input.clone(), self.items.clone()));
     }
-}
+}*/
 
 #[derive(Debug)]
 pub struct DiagnosticPart {
@@ -110,7 +114,7 @@ pub struct DiagnosticPart {
 }
 
 impl DiagnosticPart {
-    pub fn new(input: String, items: Vec<DiagnosticItem>) -> Self {
+    fn new(input: String, items: Vec<DiagnosticItem>) -> Self {
         Self {
             input,
             items,

@@ -9,29 +9,23 @@ pub struct TokenStream {
 
 impl TokenStream {
 
-    pub fn get_next(&mut self) -> Option<&Token> {
-        let token = self.tokens.get(self.cursor);
-        self.cursor += 1;
-        token
-    }
-
-    pub fn get_next_no_advance(&mut self) -> Option<&Token> {
+    pub fn get_next(&self) -> Option<&Token> {
         self.tokens.get(self.cursor)
     }
 
-    pub fn eat(&mut self, token_type: TokenType) -> Option<&Token> {
-        let next = self.get_next_no_advance();
+    pub fn eat(&mut self, token_type: TokenType) -> bool {
+        let next = self.get_next();
         if let Some(next) = next {
             if next.to_type() == token_type {
                 self.advance();
-                return Some(next);
+                return true;
             }
         }
-        None
+        false
     }
 
     #[inline]
-    fn advance(&mut self) {
+    pub fn advance(&mut self) {
         self.cursor += 1;
     }
 
