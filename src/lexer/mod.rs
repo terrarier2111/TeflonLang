@@ -1,6 +1,6 @@
 use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{SingleTokenSpan, Span};
-use crate::lexer::token::Token;
+use crate::lexer::token::{BinOp, Token};
 use crate::parser::keyword::Keyword;
 
 pub mod token;
@@ -112,6 +112,43 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
             '?' => curr_token = Some(Token::Question(SingleTokenSpan::new(cursor))),
             '_' => curr_token = Some(Token::Underscore(SingleTokenSpan::new(cursor))),
             '.' => curr_token = Some(Token::Dot(SingleTokenSpan::new(cursor))),
+            '/' => {
+                match input[cursor + 1] {
+                    '/' => {
+                        let span_start = cursor;
+                        cursor += 2;
+                        let mut buffer = String::new();
+                        while input.len() > cursor && input[cursor] != '\n' {
+                            buffer.push(input[cursor]);
+                            cursor += 1;
+                        }
+                        curr_token = Some(Token::Comment(Span::multi_token(span_start, cursor), buffer));
+                    },
+                    '=' => curr_token = Some(Token::BinOp(Span::multi_token(cursor, cursor + 1), BinOp::DivEq)),
+                    _ => curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Div)),
+                }
+            },
+            '+' => {
+                if input[cursor + 1] == '=' {
+                    curr_token = Some(Token::BinOp(Span::multi_token(cursor, cursor + 1), BinOp::AddEq));
+                } else {
+                    curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Add));
+                }
+            },
+            '-' => {
+                if input[cursor + 1] == '=' {
+                    curr_token = Some(Token::BinOp(Span::multi_token(cursor, cursor + 1), BinOp::SubEq));
+                } else {
+                    curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Sub));
+                }
+            },
+            '*' => {
+                if input[cursor + 1] == '=' {
+                    curr_token = Some(Token::BinOp(Span::multi_token(cursor, cursor + 1), BinOp::MulEq));
+                } else {
+                    curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Mul));
+                }
+            },
             ('\r' | '\n') => {}, // this is a noop
             _ => {
                 curr_token = Some(Token::Invalid(SingleTokenSpan::new(cursor), curr));
@@ -276,12 +313,4 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
     } else {
         Err(diagnostics_builder)
     }
-}
-
-#[derive(PartialEq, Copy, Clone)]
-enum BufferType {
-    NumLit,
-    StrLit,
-    Other,
-    None,
 }

@@ -29,6 +29,19 @@ impl TokenStream {
         self.cursor += 1;
     }
 
+    pub fn can_advance(&self) -> bool {
+        self.tokens.len() > self.cursor
+    }
+
+    pub fn look_ahead<F: Fn(&Token) -> bool>(&self, dist: usize, func: F) -> bool {
+        let dist = dist.max(1) - 1;
+        if let Some(token) = self.tokens.get(*self.cursor + dist) {
+            func(token)
+        } else {
+            false
+        }
+    }
+
 }
 
 pub struct UnexpectedEOI; // FIXME: do we even need this? (we probably don't)

@@ -5,7 +5,7 @@ use crate::parser::keyword::Keyword;
 pub enum TokenType {
     Ident,
     Keyword,
-    Operator,
+    BinOp,
     StrLit,
     NumLit,
     Comma, // ,
@@ -19,7 +19,6 @@ pub enum TokenType {
     Colon, // :
     Semi, // ;
     Apostrophe, // '
-    Quote, // "
     OpenAngle, // <
     ClosedAngle, // >
     Hashtag, // #
@@ -44,7 +43,7 @@ impl TokenType {
 pub enum Token {
     Ident(Span, String),
     Keyword(Span, Keyword),
-    Operator(SingleTokenSpan, Operator),
+    BinOp(Span, BinOp),
     StrLit(Span, String),
     NumLit(Span, String),
     Comma(SingleTokenSpan), // ,
@@ -58,7 +57,6 @@ pub enum Token {
     Colon(SingleTokenSpan), // :
     Semi(SingleTokenSpan), // ;
     Apostrophe(SingleTokenSpan), // '
-    Quote(SingleTokenSpan), // "
     OpenAngle(SingleTokenSpan), // <
     ClosedAngle(SingleTokenSpan), // >
     Hashtag(SingleTokenSpan), // #
@@ -77,7 +75,7 @@ impl Token {
         match self {
             Token::Ident(sp, _) => *sp,
             Token::Keyword(sp, _) => *sp,
-            Token::Operator(sp, _) => Span::single_token(sp.0),
+            Token::BinOp(sp, _) => Span::single_token(sp.0),
             Token::StrLit(sp, _) => *sp,
             Token::NumLit(sp, _) => *sp,
             Token::Comma(sp) => Span::single_token(sp.0),
@@ -92,7 +90,6 @@ impl Token {
             Token::Semi(sp) => Span::single_token(sp.0),
             Token::Invalid(sp, _) => Span::single_token(sp.0),
             Token::Apostrophe(sp) => Span::single_token(sp.0),
-            Token::Quote(sp) => Span::single_token(sp.0),
             Token::OpenAngle(sp) => Span::single_token(sp.0),
             Token::ClosedAngle(sp) => Span::single_token(sp.0),
             Token::Hashtag(sp) => Span::single_token(sp.0),
@@ -109,7 +106,7 @@ impl Token {
         match self {
             Token::Ident(_, _) => TokenType::Ident,
             Token::Keyword(_, _) => TokenType::Keyword,
-            Token::Operator(_, _) => TokenType::Operator,
+            Token::BinOp(_, _) => TokenType::BinOp,
             Token::StrLit(_, _) => TokenType::StrLit,
             Token::NumLit(_, _) => TokenType::NumLit,
             Token::Comma(_) => TokenType::Comma,
@@ -123,7 +120,6 @@ impl Token {
             Token::Colon(_) => TokenType::Colon,
             Token::Semi(_) => TokenType::Semi,
             Token::Apostrophe(_) => TokenType::Apostrophe,
-            Token::Quote(_) => TokenType::Quote,
             Token::OpenAngle(_) => TokenType::OpenAngle,
             Token::ClosedAngle(_) => TokenType::ClosedAngle,
             Token::Hashtag(_) => TokenType::Hashtag,
@@ -140,10 +136,15 @@ impl Token {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Operator {
+pub enum BinOp {
     Add,
     Sub,
     Mul,
     Div,
     Mod,
+    AddEq,
+    SubEq,
+    MulEq,
+    DivEq,
+    // ModEq,
 }

@@ -4,7 +4,7 @@ use std::fmt::{Arguments, Debug, Display, Formatter, Write};
 #[derive(Debug, Copy, Clone)]
 pub struct Span {
     pub start: usize,
-    pub end: usize,
+    pub end: usize, // FIXME: should this be inclusive or exclusive?
 }
 
 impl Span {
