@@ -73,12 +73,12 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
             '"' => {
                 let (buffer, new_cursor) = read_into_buffer(&input, cursor + 1, |x| x != '"');
                 curr_token = Some(Token::StrLit(Span::multi_token(cursor, new_cursor), buffer));
-                cursor = new_cursor;
+                cursor = new_cursor - 1;
             },
             '0'..='9' => {
                 let (buffer, new_cursor) = read_into_buffer(&input, cursor, |x| matches!(x, '.' | ('0'..='9')));
                 curr_token = Some(Token::NumLit(Span::multi_token(cursor, new_cursor), buffer));
-                cursor = new_cursor;
+                cursor = new_cursor - 1;
             },
             (('a'..='z') | ('A'..='Z') | '_') => {
                 let (buffer, new_cursor) = read_into_buffer(&input, cursor, |x| {
@@ -94,7 +94,7 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
                 } else {
                     curr_token = Some(Token::Ident(Span::multi_token(cursor, new_cursor), buffer));
                 }
-                cursor = new_cursor;
+                cursor = new_cursor - 1;
             },
             '(' => curr_token = Some(Token::OpenParen(SingleTokenSpan::new(cursor))),
             ')' => curr_token = Some(Token::ClosedParen(SingleTokenSpan::new(cursor))),
@@ -122,6 +122,7 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
                             buffer.push(input[cursor]);
                             cursor += 1;
                         }
+                        cursor -= 1;
                         curr_token = Some(Token::Comment(Span::multi_token(span_start, cursor), buffer));
                     },
                     '=' => curr_token = Some(Token::BinOp(Span::multi_token(cursor, cursor + 1), BinOp::DivEq)),

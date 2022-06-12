@@ -8,9 +8,21 @@ pub struct TokenStream {
 }
 
 impl TokenStream {
+    
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self {
+            tokens,
+            cursor: 0
+        }
+    }
 
     pub fn get_next(&self) -> Option<&Token> {
         self.tokens.get(self.cursor)
+    }
+
+    pub fn get_next_and_advance(&mut self) -> Option<&Token> {
+        self.advance();
+        self.tokens.get(self.cursor - 1)
     }
 
     pub fn eat(&mut self, token_type: TokenType) -> bool {
@@ -35,7 +47,7 @@ impl TokenStream {
 
     pub fn look_ahead<F: Fn(&Token) -> bool>(&self, dist: usize, func: F) -> bool {
         let dist = dist.max(1) - 1;
-        if let Some(token) = self.tokens.get(*self.cursor + dist) {
+        if let Some(token) = self.tokens.get(self.cursor + dist) {
             func(token)
         } else {
             false

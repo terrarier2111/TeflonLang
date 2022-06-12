@@ -39,7 +39,7 @@ impl TokenType {
 
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
     Ident(Span, String),
     Keyword(Span, Keyword),
@@ -75,7 +75,7 @@ impl Token {
         match self {
             Token::Ident(sp, _) => *sp,
             Token::Keyword(sp, _) => *sp,
-            Token::BinOp(sp, _) => Span::single_token(sp.0),
+            Token::BinOp(sp, _) => *sp,
             Token::StrLit(sp, _) => *sp,
             Token::NumLit(sp, _) => *sp,
             Token::Comma(sp) => Span::single_token(sp.0),
@@ -146,5 +146,24 @@ pub enum BinOp {
     SubEq,
     MulEq,
     DivEq,
-    // ModEq,
+    //?ModEq,
+    // Eq,
+}
+
+impl BinOp {
+
+    pub fn precedence(&self) -> usize {
+        match self {
+            BinOp::Add => 5,
+            BinOp::Sub => 5,
+            BinOp::Mul => 10,
+            BinOp::Div => 10,
+            BinOp::Mod => 10,
+            BinOp::AddEq => 1,
+            BinOp::SubEq => 1,
+            BinOp::MulEq => 1,
+            BinOp::DivEq => 1,
+        }
+    }
+
 }

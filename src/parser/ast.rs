@@ -1,42 +1,44 @@
-use crate::parser::attrs::{Constness, Publicity};
+use crate::lexer::token::BinOp;
+use crate::parser::attrs::{Constness, Visibility};
 
+#[derive(Debug)]
 pub enum AstNode {
     Number(NumberType),
     Ident(String),
-    BinaryExpr(BinaryExprNode),
-    FunctionDef(FunctionNode),
+    BinaryExpr(Box<BinaryExprNode>),
+    FunctionDef(Box<FunctionNode>),
     CallExpr(CallExprNode),
 }
 
+#[derive(Debug)]
 pub struct BinaryExprNode {
-    lhs: AstNode,
-    rhs: AstNode,
-    op: BinaryExpr,
+    pub(crate) lhs: AstNode,
+    pub(crate) rhs: AstNode,
+    pub(crate) op: BinOp,
 }
 
-pub enum BinaryExpr {
-    And,
-    Or,
-}
-
+#[derive(Debug)]
 pub struct CallExprNode {
     pub(crate) callee: String,
     pub(crate) args: Vec<AstNode>,
 }
 
+#[derive(Debug)]
 pub struct FunctionHeaderNode {
     pub name: String,
     pub modifiers: FunctionModifiers,
     pub args: Vec<(String, String)>, // type, name
 }
 
+#[derive(Debug)]
 pub struct FunctionModifiers {
     constness: Constness,
     // extern_abi: Option<String>,
-    publicity: Publicity,
+    visibility: Visibility,
     // is_async: bool,
 }
 
+#[derive(Debug)]
 pub struct FunctionNode {
     pub(crate) header: FunctionHeaderNode,
     pub(crate) body: AstNode,

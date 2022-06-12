@@ -12,7 +12,7 @@ pub enum Mutability {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum Publicity {
+pub enum Visibility {
     Public,
     Crate,
     Private,
