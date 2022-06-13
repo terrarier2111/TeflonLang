@@ -1,7 +1,7 @@
 use crate::lexer::token::BinOp;
 use crate::parser::attrs::{Constness, Visibility};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AstNode {
     Number(NumberType),
     Ident(String),
@@ -10,27 +10,27 @@ pub enum AstNode {
     CallExpr(CallExprNode),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BinaryExprNode {
     pub(crate) lhs: AstNode,
     pub(crate) rhs: AstNode,
     pub(crate) op: BinOp,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CallExprNode {
     pub(crate) callee: String,
     pub(crate) args: Vec<AstNode>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionHeaderNode {
     pub name: String,
     pub modifiers: FunctionModifiers,
     pub args: Vec<(String, String)>, // type, name
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct FunctionModifiers {
     constness: Constness,
     // extern_abi: Option<String>,
@@ -38,7 +38,7 @@ pub struct FunctionModifiers {
     // is_async: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionNode {
     pub(crate) header: FunctionHeaderNode,
     pub(crate) body: AstNode,

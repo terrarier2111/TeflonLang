@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use crate::lexer::token::{Token, TokenType};
 
 pub struct TokenStream {
-    tokens: Vec<Token>,
+    tokens: Box<[Token]>,
     cursor: usize,
 }
 
@@ -11,8 +11,8 @@ impl TokenStream {
     
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
-            tokens,
-            cursor: 0
+            tokens: tokens.into_boxed_slice(),
+            cursor: 0,
         }
     }
 

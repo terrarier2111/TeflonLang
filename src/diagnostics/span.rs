@@ -69,7 +69,7 @@ pub struct SingleTokenSpan(pub usize);
 impl SingleTokenSpan {
 
     #[inline]
-    pub fn new(position: usize) -> Self {
+    pub const fn new(position: usize) -> Self {
         Self(position)
     }
 

@@ -447,12 +447,7 @@ impl Parser {
 
     fn eat(&mut self, token: TokenType) -> bool {
         if self.curr.to_type() == token {
-            if let Some(next) = self.token_stream.get_next() {
-                self.curr = next.clone();
-            } else {
-                self.curr = Token::EOF(SingleTokenSpan::new(usize::MAX));
-            }
-            self.token_stream.advance();
+            self.advance();
             true
         } else {
             false
@@ -463,9 +458,11 @@ impl Parser {
         if let Some(next) = self.token_stream.get_next() {
             self.curr = next.clone();
         } else {
-            self.curr = Token::EOF(SingleTokenSpan::new(usize::MAX));
+            self.curr = EOF_TOKEN;
         }
         self.token_stream.advance();
     }
 
 }
+
+const EOF_TOKEN: Token = Token::EOF(SingleTokenSpan::new(usize::MAX));
