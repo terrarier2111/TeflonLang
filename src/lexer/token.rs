@@ -8,35 +8,36 @@ pub enum TokenType {
     BinOp,
     StrLit,
     NumLit,
-    Comma, // ,
-    OpenParen, // (
-    ClosedParen, // )
-    OpenCurly, // {
-    ClosedCurly, // }
-    OpenBracket, // [
+    Comma,         // ,
+    OpenParen,     // (
+    ClosedParen,   // )
+    OpenCurly,     // {
+    ClosedCurly,   // }
+    OpenBracket,   // [
     ClosedBracket, // ]
-    Eq, // =
-    Colon, // :
-    Semi, // ;
-    Apostrophe, // '
-    OpenAngle, // <
-    ClosedAngle, // >
-    Hashtag, // #
-    Star, // *
-    Dot, // .
-    Question, // ?
-    Underscore, // _
+    Colon,         // :
+    Semi,          // ;
+    Apostrophe,    // '
+    OpenAngle,     // <
+    ClosedAngle,   // >
+    Hashtag,       // #
+    Star,          // *
+    Dot,           // .
+    Question,      // ?
+    Underscore,    // _
     Comment,
     EOF, // end of file
     Invalid,
 }
 
 impl TokenType {
-
-    pub fn is_buffered_token(&self) -> bool { // FIXME: do we even need this method?
-         matches!(self, TokenType::NumLit | TokenType::StrLit | TokenType::Ident | TokenType::Keyword)
+    pub fn is_buffered_token(&self) -> bool {
+        // FIXME: do we even need this method?
+        matches!(
+            self,
+            TokenType::NumLit | TokenType::StrLit | TokenType::Ident | TokenType::Keyword
+        )
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -46,31 +47,29 @@ pub enum Token {
     BinOp(Span, BinOp),
     StrLit(Span, String),
     NumLit(Span, String),
-    Comma(SingleTokenSpan), // ,
-    OpenParen(SingleTokenSpan), // (
-    ClosedParen(SingleTokenSpan), // )
-    OpenCurly(SingleTokenSpan), // {
-    ClosedCurly(SingleTokenSpan), // }
-    OpenBracket(SingleTokenSpan), // [
+    Comma(SingleTokenSpan),         // ,
+    OpenParen(SingleTokenSpan),     // (
+    ClosedParen(SingleTokenSpan),   // )
+    OpenCurly(SingleTokenSpan),     // {
+    ClosedCurly(SingleTokenSpan),   // }
+    OpenBracket(SingleTokenSpan),   // [
     ClosedBracket(SingleTokenSpan), // ]
-    Eq(SingleTokenSpan), // =
-    Colon(SingleTokenSpan), // :
-    Semi(SingleTokenSpan), // ;
-    Apostrophe(SingleTokenSpan), // '
-    OpenAngle(SingleTokenSpan), // <
-    ClosedAngle(SingleTokenSpan), // >
-    Hashtag(SingleTokenSpan), // #
-    Star(SingleTokenSpan), // *
-    Dot(SingleTokenSpan), // .
-    Question(SingleTokenSpan), // ?
-    Underscore(SingleTokenSpan), // _
+    Colon(SingleTokenSpan),         // :
+    Semi(SingleTokenSpan),          // ;
+    Apostrophe(SingleTokenSpan),    // '
+    OpenAngle(SingleTokenSpan),     // <
+    ClosedAngle(SingleTokenSpan),   // >
+    Hashtag(SingleTokenSpan),       // #
+    Star(SingleTokenSpan),          // *
+    Dot(SingleTokenSpan),           // .
+    Question(SingleTokenSpan),      // ?
+    Underscore(SingleTokenSpan),    // _
     Comment(Span, String),
     EOF(SingleTokenSpan), // end of file
     Invalid(SingleTokenSpan, char),
 }
 
 impl Token {
-
     pub fn span(&self) -> Span {
         match self {
             Token::Ident(sp, _) => *sp,
@@ -85,7 +84,6 @@ impl Token {
             Token::ClosedCurly(sp) => Span::single_token(sp.0),
             Token::OpenBracket(sp) => Span::single_token(sp.0),
             Token::ClosedBracket(sp) => Span::single_token(sp.0),
-            Token::Eq(sp) => Span::single_token(sp.0),
             Token::Colon(sp) => Span::single_token(sp.0),
             Token::Semi(sp) => Span::single_token(sp.0),
             Token::Invalid(sp, _) => Span::single_token(sp.0),
@@ -116,7 +114,6 @@ impl Token {
             Token::ClosedCurly(_) => TokenType::ClosedCurly,
             Token::OpenBracket(_) => TokenType::OpenBracket,
             Token::ClosedBracket(_) => TokenType::ClosedBracket,
-            Token::Eq(_) => TokenType::Eq,
             Token::Colon(_) => TokenType::Colon,
             Token::Semi(_) => TokenType::Semi,
             Token::Apostrophe(_) => TokenType::Apostrophe,
@@ -132,7 +129,6 @@ impl Token {
             Token::EOF(_) => TokenType::EOF,
         }
     }
-
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -146,12 +142,13 @@ pub enum BinOp {
     SubEq,
     MulEq,
     DivEq,
-    //?ModEq,
-    // Eq,
+    Eq,
+    // EqEq, // ==
+    // NEq,  // !=
+    //?ModEq, // %=
 }
 
 impl BinOp {
-
     pub fn precedence(&self) -> usize {
         match self {
             BinOp::Add => 5,
@@ -163,7 +160,9 @@ impl BinOp {
             BinOp::SubEq => 1,
             BinOp::MulEq => 1,
             BinOp::DivEq => 1,
+            BinOp::Eq => 1,
+            // BinOp::EqEq => 2,
+            // BinOp::NEq => 2,
         }
     }
-
 }

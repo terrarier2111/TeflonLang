@@ -1,8 +1,8 @@
+use crate::diagnostics::span::Span;
+use colored::Colorize;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::mem;
-use crate::diagnostics::span::Span;
-use colored::Colorize;
 
 #[derive(Debug)]
 pub struct DiagnosticSubBuilder<'sup> {
@@ -20,7 +20,12 @@ impl<'sup> DiagnosticSubBuilder<'sup> {
         }
     }
 
-    pub(crate) fn from_input_and_err_with_span(sup: &'sup mut DiagnosticBuilder, input: String, error: String, span: Span) -> Self {
+    pub(crate) fn from_input_and_err_with_span(
+        sup: &'sup mut DiagnosticBuilder,
+        input: String,
+        error: String,
+        span: Span,
+    ) -> Self {
         let mut ret = Self {
             sup,
             input,
@@ -31,7 +36,11 @@ impl<'sup> DiagnosticSubBuilder<'sup> {
     }
 
     #[inline]
-    pub(crate) fn from_input_and_err(sup: &'sup mut DiagnosticBuilder, input: String, error: String) -> Self {
+    pub(crate) fn from_input_and_err(
+        sup: &'sup mut DiagnosticBuilder,
+        input: String,
+        error: String,
+    ) -> Self {
         Self::from_input_and_err_with_span(sup, input, error, Span::NONE)
     }
 
@@ -83,11 +92,12 @@ impl<'sup> DiagnosticSubBuilder<'sup> {
         self.items.is_empty()
     }
 
-    pub fn build(/*mut */mut self) -> &'sup mut DiagnosticBuilder {
-        self.sup.parts.push(DiagnosticPart::new(self.input.clone(), self.items.clone()));
+    pub fn build(/*mut */ mut self) -> &'sup mut DiagnosticBuilder {
+        self.sup
+            .parts
+            .push(DiagnosticPart::new(self.input.clone(), self.items.clone()));
         self.sup
     }
-
 }
 
 impl Display for DiagnosticSubBuilder<'_> {
@@ -115,10 +125,7 @@ pub struct DiagnosticPart {
 
 impl DiagnosticPart {
     fn new(input: String, items: Vec<DiagnosticItem>) -> Self {
-        Self {
-            input,
-            items,
-        }
+        Self { input, items }
     }
 
     fn build_span_string(span: &Span) -> String {
@@ -137,7 +144,6 @@ impl DiagnosticPart {
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
-
 }
 
 impl Display for DiagnosticPart {
@@ -165,7 +171,9 @@ impl DiagnosticItem {
                 if !span.is_none() {
                     input.to_owned()
                         + "\n"
-                        + &DiagnosticSubBuilder::build_span_string(span).red().to_string()
+                        + &DiagnosticSubBuilder::build_span_string(span)
+                            .red()
+                            .to_string()
                         + "\n"
                         + &" ".repeat(span.start)
                         + &str.red().to_string()
@@ -179,8 +187,8 @@ impl DiagnosticItem {
                     input.to_owned()
                         + "\n"
                         + &DiagnosticSubBuilder::build_span_string(span)
-                        .yellow()
-                        .to_string()
+                            .yellow()
+                            .to_string()
                         + "\n"
                         + &" ".repeat(span.start)
                         + &str.yellow().to_string()
@@ -213,11 +221,8 @@ pub struct DiagnosticBuilder {
 }
 
 impl DiagnosticBuilder {
-    
     pub fn new() -> Self {
-        Self {
-            parts: vec![]
-        }
+        Self { parts: vec![] }
     }
 
     pub fn diagnostic(&mut self, input: String) -> DiagnosticSubBuilder {
@@ -228,7 +233,6 @@ impl DiagnosticBuilder {
     pub fn is_empty(&self) -> bool {
         self.parts.is_empty()
     }
-    
 }
 
 #[macro_export]

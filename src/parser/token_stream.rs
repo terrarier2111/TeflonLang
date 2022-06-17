@@ -1,6 +1,6 @@
+use crate::lexer::token::{Token, TokenType};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use crate::lexer::token::{Token, TokenType};
 
 pub struct TokenStream {
     tokens: Box<[Token]>,
@@ -8,7 +8,6 @@ pub struct TokenStream {
 }
 
 impl TokenStream {
-    
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens: tokens.into_boxed_slice(),
@@ -53,7 +52,6 @@ impl TokenStream {
             false
         }
     }
-
 }
 
 pub struct UnexpectedEOI; // FIXME: do we even need this? (we probably don't)

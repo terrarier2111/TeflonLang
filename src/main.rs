@@ -1,13 +1,13 @@
-use std::{env, fs};
-use std::fs::File;
-use std::io::{Error, ErrorKind, Write};
 use crate::lexer::token::Token;
 use crate::parser::parser::Parser;
 use crate::parser::token_stream::TokenStream;
+use std::fs::File;
+use std::io::{Error, ErrorKind, Write};
+use std::{env, fs};
 
+mod diagnostics;
 mod lexer;
 mod parser;
-mod diagnostics;
 
 fn main() {
     let path = env::current_dir().unwrap();
@@ -21,9 +21,9 @@ fn main() {
     let mut token_stream = TokenStream::new(lexed);
     let mut parser = Parser::new(token_stream);
     println!("parsing...");
-    parser.parse_all();
+    let krate = parser.parse_crate().unwrap();
     println!("parsed!");
-    println!("ast: {:?}", parser.ast);
+    println!("ast: {:?}", krate);
 }
 
 // https://hackernoon.com/lets-build-a-programming-language-2612349105c6
@@ -47,4 +47,3 @@ fn input(text: String) -> std::io::Result<String> {
     }
     Ok(input)
 }
-

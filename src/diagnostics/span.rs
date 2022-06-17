@@ -8,10 +8,9 @@ pub struct Span {
 }
 
 impl Span {
-
     pub const NONE: Span = Span {
         start: usize::MAX,
-        end: usize::MAX
+        end: usize::MAX,
     };
 
     pub fn single_token(position: usize) -> Self {
@@ -23,10 +22,7 @@ impl Span {
 
     #[inline]
     pub fn multi_token(start: usize, end: usize) -> Self {
-        Self {
-            start,
-            end,
-        }
+        Self { start, end }
     }
 
     pub fn shrink_hi(&mut self) -> Result<(), ShrinkHiError> {
@@ -48,7 +44,6 @@ impl Span {
     pub fn is_none(&self) -> bool {
         self.start == Self::NONE.start && self.end == Self::NONE.end
     }
-
 }
 
 impl GenericSpan for Span {
@@ -67,12 +62,10 @@ impl GenericSpan for Span {
 pub struct SingleTokenSpan(pub usize);
 
 impl SingleTokenSpan {
-
     #[inline]
     pub const fn new(position: usize) -> Self {
         Self(position)
     }
-
 }
 
 impl GenericSpan for SingleTokenSpan {
@@ -88,11 +81,9 @@ impl GenericSpan for SingleTokenSpan {
 }
 
 pub trait GenericSpan {
-
     fn start(&self) -> usize;
 
     fn end(&self) -> usize;
-
 }
 
 pub struct ShrinkHiError(usize);
@@ -136,4 +127,3 @@ impl Display for ShrinkLoError {
 }
 
 impl Error for ShrinkLoError {}
-

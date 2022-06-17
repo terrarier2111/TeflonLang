@@ -2,8 +2,46 @@ fn main() {
     println!("test");
 }
 
-// FIXME: make every enum have an "orid" function
+// FIXME: (maybe) add mutability inference - at least for local variables - THIS IS PROBABLY A PRETTY HORRIBLE IDEA BECAUSE MUTABILITY CONVEYS IMPORTANT INFO
+// FIXME: make functions const by default and add possibility to add non-const modifiers - THIS IS PROBABLY A PRETTY HORRIBLE IDEA BECAUSE OF SEM-VER ISSUES
+
+// FIXME: make every enum have an "ord" function
 // FIXME: make enums special types
-// FIXME: make a trait for enums that have no values, and just variants and which allows
-// FIXME: (maybe) add mutability inference - at least for local variables
-// FIXME: make functions const by default and add possibility to add non-const modifiers
+// FIXME: make a trait for enums that have no values, and just variants and which allows for "ord" and "from_ord" methods
+// FIXME: try to make it possible to return mutable and non-mutable types dynamically(depending on what's needed - as long as there's no #[no_mangle] attribute)
+// FIXME: we could introduce a new "Mut" or "DyMut" or "Mutability" / "Mutab" keyword for that (this is consistent with "self" and "Self")
+// FIXME: we could simply pass the value of Mutab via generics, the only question remaining is how we handle it at the lowest layer, though we could
+// FIXME: simply let the implementor provide 2 functions with different Mutab values (Mutab would be an enum, a (marker) trait or some special internal type)
+// FIXME: for now this only works if we don't depend on the mutability of parameters although that maybe supported as well
+
+// FIXME: -sealed types
+// FIXME: -MAYBE: remove `as` keyword
+// FIXME: -MAYBE: Fixing the = vs : problem.  = should always have a value after it, and : should always have a type after it.  No more V3 { x: 1 } silliness.
+https://github.com/rust-lang/rfcs/blob/master/text/2582-raw-reference-mir-operator.md
+
+The safe parts of rust are so well thought out and nice, but the unsafe parts really were just an afterthought I feel
+especially the early rust attitude of "it's fine if you're careful" will really hurt future development
+i mean, we're already breaking stability promises by making std::mem::uninitialized::<bool>() UB
+sure, it's completely sane, but some time ago we said that it's fine if you're careful
+
+i still find it hilarious that we put noalias on box without telling anyone
+
+https://github.com/rust-lang/rust/pull/91970/files
+
+
+how does this work?: (UNRELATED TO LANGUAGE STUFF, JUST A FUN THOUGHT EXPERIMENT):
+let mut b: Box<String> = Box::new(String::new());
+
+let s: String = *b;
+*b = String::new();
+dbg!(b);
+
+
+
+Shallow initialization, yay
+Yeah, boxes need
+ - a way to do partial moves
+ - a way to do shallow initialization
+ - a way to call a boxed dyn FnOnce
+- a way to do in-place construction
+

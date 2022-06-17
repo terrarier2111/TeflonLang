@@ -1,20 +1,21 @@
 use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::SingleTokenSpan;
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::ast::{AstNode, BinaryExprNode, CallExprNode, FunctionHeaderNode, FunctionModifiers, FunctionNode, NumberType};
-use crate::parser::attrs::Visibility;
+use crate::parser::ast::{
+    AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
+    FunctionModifiers, FunctionNode, ItemKind, NumberType, StaticValNode, Stmt, StmtKind,
+};
+use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
 use crate::parser::token_stream::TokenStream;
 
 pub struct Parser {
     token_stream: TokenStream,
     curr: Token,
-    pub ast: Vec<AstNode>,
     diagnostics: DiagnosticBuilder,
 }
 
 impl Parser {
-
     // FIXME: see: https://www.youtube.com/watch?v=4m7ubrdbWQU
 
     pub fn new(mut token_stream: TokenStream) -> Self {
@@ -22,33 +23,64 @@ impl Parser {
         Self {
             token_stream,
             curr,
-            ast: vec![],
             diagnostics: DiagnosticBuilder::new(),
         }
     }
 
-    pub fn parse_all(&mut self) {
-        while self.curr.to_type() != TokenType::EOF && self.token_stream.can_advance() { // FIXME: this loop runs indefinitely!
+    pub fn parse_crate(&mut self) -> Result<Crate, ()> {
+        let mut items = vec![];
+        while self.curr.to_type() != TokenType::EOF && self.token_stream.can_advance() {
+            // FIXME: this loop runs indefinitely!
             println!("in loop!");
-            match self.parse_expr() {
+            match self.parse_item() {
                 Ok(val) => {
-                    if let Some(node) = val {
-                        self.ast.push(node);
+                    if let Some(item) = val {
+                        items.push(item);
                     } else {
                         self.advance(); // FIXME: is this correct?
                     }
-                },
+                    /*if let Some(node) = val {
+                        self.ast.push(node);
+                    } else {
+                        self.advance(); // FIXME: is this correct?
+                    }*/
+                }
                 Err(_) => {
                     self.advance(); // FIXME: is this correct?
-                    // FIXME: insert error into diagnostics builder
+                                    // FIXME: insert error into diagnostics builder
                 }
             }
         }
+        Ok(Crate { items })
     }
+
+    /*
+    pub fn parse_all(&mut self) {
+        while self.curr.to_type() != TokenType::EOF && self.token_stream.can_advance() {
+            // FIXME: this loop runs indefinitely!
+            println!("in loop!");
+            match self.parse_entry() {
+                Ok(val) => {
+                    self.ast.push(val);
+                    /*if let Some(node) = val {
+                        self.ast.push(node);
+                    } else {
+                        self.advance(); // FIXME: is this correct?
+                    }*/
+                }
+                Err(_) => {
+                    self.advance(); // FIXME: is this correct?
+                                    // FIXME: insert error into diagnostics builder
+                }
+            }
+        }
+    }*/
 
     fn parse_number_expr(&mut self) -> Option<AstNode> {
         if let Token::NumLit(_, content) = &self.curr {
-            let ret = Some(AstNode::Number(NumberType::F64(content.parse::<f64>().unwrap()))); // FIXME: do proper parsing of numbers
+            let ret = Some(AstNode::Number(NumberType::F64(
+                content.parse::<f64>().unwrap(),
+            ))); // FIXME: do proper parsing of numbers
             self.advance();
             ret
         } else {
@@ -68,6 +100,7 @@ impl Parser {
         None
     }
 
+    /*
     fn parse_function_header(&mut self) -> Option<AstNode> {
         /*if let Some(curr) = self.curr {
             match curr {
@@ -90,65 +123,79 @@ impl Parser {
             None
         }*/
         None
-    }
+    }*/
 
-    fn parse_function_header_2(&mut self, modifiers: FunctionModifiers) -> Option<FunctionHeaderNode> {
-        if let Some(Token::Ident(_, content)) = self.token_stream.get_next() {
+    fn parse_function(
+        &mut self,
+        // modifiers: FunctionModifiers,
+        visibility: Option<Visibility>,
+    ) -> Result<ItemKind, ()> {
+        // skip the `fn` keyword
+        self.advance();
+        if let Token::Ident(_, content) = &self.curr {
+            println!("ident!");
             let content = content.clone();
             self.advance();
-            if self.eat(TokenType::OpenParen) {
-                // let args = self.parse_comma_separated(); // FIXME: parse a comma separated types list instead of a comma separated expr list
-                let mut args = vec![];
-                if let Some(param) = self.parse_param() {
-                    args.push(param);
-                    let mut extra_comma = false;
-                    let mut emitted_err = false;
-                    while self.eat(TokenType::Comma) {
-                        if let Some(item) = self.parse_param() {
-                            args.push(item);
-                        } else {
-                            if extra_comma {
-                                if !emitted_err {
-                                    // FIXME: handle error!
-                                    emitted_err = true;
-                                }
-                                // break;
-                            } else {
-                                extra_comma = true;
+            if !self.eat(TokenType::OpenParen) {
+                return Err(());
+            }
+            println!("open paren!");
+            // let args = self.parse_comma_separated(); // FIXME: parse a comma separated types list instead of a comma separated expr list
+            let mut args = vec![];
+            if let Some(param) = self.parse_param() {
+                args.push(param);
+                let mut extra_comma = false;
+                let mut emitted_err = false;
+                while self.eat(TokenType::Comma) {
+                    if let Some(item) = self.parse_param() {
+                        args.push(item);
+                    } else {
+                        if extra_comma {
+                            if !emitted_err {
+                                // FIXME: handle error!
+                                emitted_err = true;
                             }
+                            // break;
+                        } else {
+                            extra_comma = true;
                         }
                     }
                 }
-
-                if self.eat(TokenType::OpenParen) {
-                    Some(FunctionHeaderNode {
-                        name: content,
-                        modifiers,
-                        args,
-                    })
-                } else {
-                    None // FIXME: return error!
-                }
-            } else {
-                None // FIXME: return error!
             }
+
+            if !self.eat(TokenType::ClosedParen) {
+                return Err(());
+            }
+
+            let body = self.parse_block()?;
+
+            Ok(ItemKind::FunctionDef(Box::new(FunctionNode {
+                name: content,
+                modifiers: FunctionModifiers {
+                    constness: Constness::Undefined,
+                    visibility: visibility.unwrap_or(Visibility::Private),
+                },
+                args,
+                body,
+            })))
         } else {
-            None // FIXME: return error!
+            Err(()) // FIXME: return error!
         }
     }
 
     fn parse_param(&mut self) -> Option<(String, String)> {
-        if let Some(Token::Ident(_, name)) = self.token_stream.get_next() {
+        if let Token::Ident(_, name) = &self.curr {
             let name = name.clone();
             self.advance();
-            if self.eat(TokenType::Colon) {
-                if let Some(Token::Ident(_, ty)) = self.token_stream.get_next() {
-                    let ret = Some((name, ty.clone()));
-                    self.advance();
-                    ret
-                } else {
-                    None
-                }
+
+            if !self.eat(TokenType::Colon) {
+                return None;
+            }
+
+            if let Token::Ident(_, ty) = &self.curr {
+                let ret = Some((name, ty.clone()));
+                self.advance();
+                ret
             } else {
                 None
             }
@@ -188,10 +235,7 @@ impl Parser {
             if self.eat(TokenType::OpenParen) {
                 let args = self.parse_comma_separated();
                 if self.eat(TokenType::ClosedParen) {
-                    Some(AstNode::CallExpr(CallExprNode {
-                        callee: name,
-                        args
-                    }))
+                    Some(AstNode::CallExpr(CallExprNode { callee: name, args }))
                 } else {
                     None
                 }
@@ -210,14 +254,6 @@ impl Parser {
             self.parse_bin_op_rhs(0, lhs)
         } else {
             Err(())
-        }
-    }
-
-    fn get_token_precedence(&self) -> Option<usize> {
-        if let Token::BinOp(_, bin_op) = &self.curr {
-            Some(bin_op.precedence())
-        } else {
-            None
         }
     }
 
@@ -261,7 +297,11 @@ impl Parser {
                             op: bin_op,
                         })));*/
                         // let prev_rhs = rhs.take();
-                        rhs = rhs.map(|rhs| self.parse_bin_op_rhs(bin_op.precedence() + 1, rhs).unwrap().unwrap());
+                        rhs = rhs.map(|rhs| {
+                            self.parse_bin_op_rhs(bin_op.precedence() + 1, rhs)
+                                .unwrap()
+                                .unwrap()
+                        });
                         if rhs.is_none() {
                             return Err(()); // FIXME: is this correct?
                         }
@@ -341,7 +381,7 @@ impl Parser {
                 Keyword::Pub => {
                     self.advance();
                     Some(Visibility::Public)
-                },
+                }
                 _ => None,
             }
         } else {
@@ -349,14 +389,167 @@ impl Parser {
         }
     }
 
-    fn parse_glob(&mut self) -> Result<Option<AstNode>, ()> {
+    fn parse_stmt_or_expr(&mut self) -> Result<StmtKind, ()> {
+        let expr = self.parse_expr()?;
+        if self.eat(TokenType::Semi) {
+            if let Some(expr) = expr {
+                return Ok(StmtKind::Semi(expr));
+            }
+        }
+        Ok(expr.map_or(StmtKind::Empty, |node| StmtKind::Expr(node)))
+    }
+
+    fn parse_block(&mut self) -> Result<Block, ()> {
+        if self.curr.to_type() != TokenType::OpenCurly {
+            return Err(());
+        }
+        self.advance();
+        // FIXME: parse statements and an optional expression at the end
+        let mut stmts = vec![];
+        while self.curr.to_type() != TokenType::ClosedCurly {
+            let combined = self.parse_stmt_or_expr()?;
+            match combined {
+                StmtKind::Item(_) => {} // FIXME: err
+                StmtKind::Semi(_) | StmtKind::Empty => {
+                    stmts.push(combined);
+                }
+                StmtKind::Expr(_) => {
+                    // there can only be a single expr(without a trailing semi in a block)
+                    // and that's at its end
+                    stmts.push(combined);
+                    break;
+                }
+            }
+        }
+
+        if self.eat(TokenType::ClosedCurly) {
+            Ok(Block {
+                modifiers: BlockModifiers {},
+                stmts,
+            })
+        } else {
+            Err(())
+        }
+    }
+
+    fn parse_mutability(&mut self) -> Option<Mutability> {
+        if let Token::Keyword(_, Keyword::Mut) = &self.curr {
+            self.advance();
+            Some(Mutability::Mut)
+        } else {
+            None
+        }
+    }
+
+    fn parse_static(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
+        println!("parsing static!");
+        self.advance();
+        let mutability = self.parse_mutability();
+
+        if let Token::Ident(_, name) = &self.curr {
+            let name = name.clone();
+            self.advance();
+            println!("found name: {}", name);
+            let ty = if self.eat(TokenType::Colon) {
+                if let Token::Ident(_, ty) = &self.curr {
+                    println!("found ty: {}", ty);
+                    let ty = ty.clone();
+                    self.advance();
+                    Ok(ty)
+                } else {
+                    // FIXME: error!
+                    Err(())
+                }
+            } else {
+                // FIXME: error!
+                Err(())
+            }?;
+
+            let rhs = self.parse_bin_op_rhs(0, AstNode::Ident(name))?.unwrap();
+            if !self.eat(TokenType::Semi) {
+                println!("found WEIRD token: {:?}", self.curr);
+                return Err(());
+            }
+
+            println!("generating static val node!");
+            Ok(ItemKind::StaticVal(Box::new(StaticValNode {
+                ty,
+                mutability,
+                val: rhs,
+                visibility,
+            })))
+        } else {
+            Err(())
+        }
+    }
+
+    fn parse_const(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
+        self.advance();
+
+        if let Token::Ident(_, name) = &self.curr {
+            let name = name.clone();
+            self.advance();
+            let ty = if self.eat(TokenType::Colon) {
+                if let Token::Ident(_, ty) = &self.curr {
+                    let ty = ty.clone();
+                    self.advance();
+                    Ok(ty)
+                } else {
+                    // FIXME: error!
+                    Err(())
+                }
+            } else {
+                // FIXME: error!
+                Err(())
+            }?;
+
+            let rhs = self.parse_bin_op_rhs(0, AstNode::Ident(name))?.unwrap();
+            if !self.eat(TokenType::Semi) {
+                return Err(());
+            }
+
+            Ok(ItemKind::ConstVal(Box::new(ConstValNode {
+                ty,
+                val: rhs,
+                visibility,
+            })))
+        } else {
+            Err(())
+        }
+    }
+
+    fn parse_glob(&mut self) -> Result<Option<ItemKind>, ()> {
         let visibility = self.parse_visibility()/*.unwrap_or(Visibility::Private)*/;
 
-        /*match self.curr {
+        match self.curr {
             Token::Ident(_, _) => {
                 // FIXME: try to recover
             }
-            Token::Keyword(_, _) => {}
+            Token::Keyword(_, kw) => {
+                return match kw {
+                    Keyword::Pub => {
+                        // FIXME: error
+                        Err(())
+                    }
+                    Keyword::Static => self.parse_static(visibility).map(|item| Some(item)),
+                    Keyword::Const => {
+                        // FIXME: distinguish between const func and const value!
+                        Err(())
+                    }
+                    Keyword::Rt => Err(()), // FIXME: ?
+                    Keyword::Fn => self.parse_function(visibility).map(|item| Some(item)),
+                    Keyword::Enum => Err(()),
+                    Keyword::Struct => Err(()),
+                    Keyword::Mod => Err(()),
+                    Keyword::Impl => Err(()),
+                    Keyword::Async => Err(()),
+                    Keyword::Unsafe => Err(()),
+                    Keyword::Extern => Err(()),
+                    Keyword::Trait => Err(()),
+                    Keyword::Type => Err(()),
+                    _ => Ok(None), // FIXME: error
+                };
+            }
             Token::StrLit(_, _) => {
                 // FIXME: try to recover
             }
@@ -364,16 +557,12 @@ impl Parser {
                 // FIXME: try to recover
             }
             Token::OpenParen(_) => {}
-            Token::OpenCurly(_) => {}
-            Token::OpenBracket(_) => {}
-            Token::Eq(_) => {
-                // FIXME: MAYBE try to recover
-            }
             Token::Colon(_) => {
                 // FIXME: MAYBE try to recover
             }
             Token::Comment(_, _) => {}
-        }*/
+            _ => {}
+        }
         Ok(None)
     }
 
@@ -381,11 +570,14 @@ impl Parser {
         println!("curr: {:?}", self.curr);
         match &self.curr {
             Token::Ident(_, content) => {
-                if self.token_stream.look_ahead(1, |token| token.to_type() == TokenType::OpenParen) {
+                if self
+                    .token_stream
+                    .look_ahead(1, |token| token.to_type() == TokenType::OpenParen)
+                {
                     Ok(self.parse_call()) // FIXME: handle errors properly!
-                    /*} else if self.token_stream.look_ahead(1, |token| token.to_type() == TokenType::Dot) {
-                        // FIXME: parse field access/struct method call
-                        */
+                                          /*} else if self.token_stream.look_ahead(1, |token| token.to_type() == TokenType::Dot) {
+                                          // FIXME: parse field access/struct method call
+                                           */
                 } else {
                     // FIXME: handle the rest!
                     let content = content.clone();
@@ -409,7 +601,7 @@ impl Parser {
             // Token::Underscore(_) => {}
             Token::Comment(_, _) => Ok(None),
             Token::EOF(_) => Err(()),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 
@@ -418,31 +610,24 @@ impl Parser {
         self.parse_bin_op()
     }
 
-    fn parse_entry(&mut self) -> Result<Option<AstNode>, ()> {
-        /*if let Some(curr) = self.curr {
-            match curr {
-                Token::Keyword(_, kw) => {
-
-                },
-                // Token::StrLit(_, _) => {}
-                //#!Token::OpenCurly(_) => {}
-                // Token::OpenBracket(_) => {}
-                // Token::Eq(_) => {}
-                // Token::Colon(_) => {}
-                //#!Token::Semi(_) => {}
-                // Token::Apostrophe(_) => {}
-                // Token::OpenAngle(_) => {}
-                // Token::Star(_) => {}
-                // Token::Question(_) => {}
-                // Token::Underscore(_) => {}
-                Token::Comment(_, _) => Ok(None),
-                Token::EOF(_) => Err(()),
-                _ => Err(())
-            }
-        } else {
-            Err(())
-        }*/
-        Ok(None)
+    fn parse_item(&mut self) -> Result<Option<ItemKind>, ()> {
+        match self.curr {
+            Token::Keyword(_, _) => self.parse_glob(),
+            // Token::StrLit(_, _) => {}
+            //#!Token::OpenCurly(_) => {}
+            // Token::OpenBracket(_) => {}
+            // Token::Eq(_) => {}
+            // Token::Colon(_) => {}
+            //#!Token::Semi(_) => {}
+            // Token::Apostrophe(_) => {}
+            // Token::OpenAngle(_) => {}
+            // Token::Star(_) => {}
+            // Token::Question(_) => {}
+            // Token::Underscore(_) => {}
+            Token::Comment(_, _) => Ok(None),
+            Token::EOF(_) => Err(()),
+            _ => Err(()),
+        }
     }
 
     fn eat(&mut self, token: TokenType) -> bool {
@@ -462,7 +647,6 @@ impl Parser {
         }
         self.token_stream.advance();
     }
-
 }
 
 const EOF_TOKEN: Token = Token::EOF(SingleTokenSpan::new(usize::MAX));
