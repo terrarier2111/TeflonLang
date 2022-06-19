@@ -1,5 +1,5 @@
 use crate::diagnostics::builder::DiagnosticBuilder;
-use crate::diagnostics::span::SingleTokenSpan;
+use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::lexer::token::{Token, TokenType};
 use crate::parser::ast::{
     AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
@@ -100,6 +100,16 @@ impl Parser {
         None
     }
 
+    fn parse_ident(&mut self) -> Option<(Span, String)> {
+        if let Token::Ident(sp, val) = &self.curr {
+            let ret = Some((*sp, val.clone()));
+            self.advance();
+            ret
+        } else {
+            None
+        }
+    }
+
     /*
     fn parse_function_header(&mut self) -> Option<AstNode> {
         /*if let Some(curr) = self.curr {
@@ -127,7 +137,6 @@ impl Parser {
 
     fn parse_function(
         &mut self,
-        // modifiers: FunctionModifiers,
         visibility: Option<Visibility>,
     ) -> Result<ItemKind, ()> {
         // skip the `fn` keyword
@@ -139,8 +148,7 @@ impl Parser {
             if !self.eat(TokenType::OpenParen) {
                 return Err(());
             }
-            println!("open paren!");
-            // let args = self.parse_comma_separated(); // FIXME: parse a comma separated types list instead of a comma separated expr list
+            println!("open paren {}", content);
             let mut args = vec![];
             if let Some(param) = self.parse_param() {
                 args.push(param);
@@ -167,7 +175,18 @@ impl Parser {
                 return Err(());
             }
 
-            let body = self.parse_block()?;
+            println!("find ret!");
+
+            let ret = if self.eat(TokenType::Arrow) {
+                let val = self.parse_ident();
+                val.map(|x| x.1)
+            } else {
+                None
+            };
+
+            let body = self.parse_block_no_attr()?;
+
+            println!("after body!");
 
             Ok(ItemKind::FunctionDef(Box::new(FunctionNode {
                 name: content,
@@ -175,6 +194,7 @@ impl Parser {
                     constness: Constness::Undefined,
                     visibility: visibility.unwrap_or(Visibility::Private),
                 },
+                ret,
                 args,
                 body,
             })))
@@ -235,16 +255,11 @@ impl Parser {
             if self.eat(TokenType::OpenParen) {
                 let args = self.parse_comma_separated();
                 if self.eat(TokenType::ClosedParen) {
-                    Some(AstNode::CallExpr(CallExprNode { callee: name, args }))
-                } else {
-                    None
+                    return Some(AstNode::CallExpr(CallExprNode { callee: name, args }));
                 }
-            } else {
-                None
             }
-        } else {
-            None
         }
+        None
     }
 
     fn parse_bin_op(&mut self) -> Result<Option<AstNode>, ()> {
@@ -291,12 +306,6 @@ impl Parser {
 
                 if let Some(next_bin_op) = next_bin_op {
                     if bin_op.precedence() < next_bin_op.precedence() {
-                        /*return Ok(Some(AstNode::BinaryExpr(BinaryExprNode {
-                            lhs,
-                            rhs,
-                            op: bin_op,
-                        })));*/
-                        // let prev_rhs = rhs.take();
                         rhs = rhs.map(|rhs| {
                             self.parse_bin_op_rhs(bin_op.precedence() + 1, rhs)
                                 .unwrap()
@@ -307,7 +316,6 @@ impl Parser {
                         }
                     }
                 } else {
-                    // return Ok(Some(lhs));
                     return Ok(Some(AstNode::BinaryExpr(Box::new(BinaryExprNode {
                         lhs,
                         rhs: rhs.take().unwrap(),
@@ -325,10 +333,6 @@ impl Parser {
     }
 
     /*
-    fn parse_pub(&mut self) -> Result<Option<AstNode>, ()> {
-
-    }
-
     fn parse_kw_glob(&mut self, prev: Option<Vec<Keyword>>) -> Result<Option<AstNode>, ()> {
         if let Some(curr) = self.curr {
             match curr {
@@ -376,14 +380,8 @@ impl Parser {
     }*/
 
     fn parse_visibility(&mut self) -> Option<Visibility> {
-        if let Token::Keyword(_, kw) = &self.curr {
-            match kw {
-                Keyword::Pub => {
-                    self.advance();
-                    Some(Visibility::Public)
-                }
-                _ => None,
-            }
+        if self.eat_kw(Keyword::Pub) {
+            Some(Visibility::Public)
         } else {
             None
         }
@@ -399,12 +397,10 @@ impl Parser {
         Ok(expr.map_or(StmtKind::Empty, |node| StmtKind::Expr(node)))
     }
 
-    fn parse_block(&mut self) -> Result<Block, ()> {
-        if self.curr.to_type() != TokenType::OpenCurly {
+    fn parse_block_no_attr(&mut self) -> Result<Block, ()> {
+        if !self.eat(TokenType::OpenCurly) {
             return Err(());
         }
-        self.advance();
-        // FIXME: parse statements and an optional expression at the end
         let mut stmts = vec![];
         while self.curr.to_type() != TokenType::ClosedCurly {
             let combined = self.parse_stmt_or_expr()?;
@@ -433,8 +429,7 @@ impl Parser {
     }
 
     fn parse_mutability(&mut self) -> Option<Mutability> {
-        if let Token::Keyword(_, Keyword::Mut) = &self.curr {
-            self.advance();
+        if self.eat_kw(Keyword::Mut) {
             Some(Mutability::Mut)
         } else {
             None
@@ -442,17 +437,15 @@ impl Parser {
     }
 
     fn parse_static(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
-        println!("parsing static!");
+        // skip `static` keyword
         self.advance();
         let mutability = self.parse_mutability();
 
         if let Token::Ident(_, name) = &self.curr {
             let name = name.clone();
             self.advance();
-            println!("found name: {}", name);
             let ty = if self.eat(TokenType::Colon) {
                 if let Token::Ident(_, ty) = &self.curr {
-                    println!("found ty: {}", ty);
                     let ty = ty.clone();
                     self.advance();
                     Ok(ty)
@@ -467,11 +460,9 @@ impl Parser {
 
             let rhs = self.parse_bin_op_rhs(0, AstNode::Ident(name))?.unwrap();
             if !self.eat(TokenType::Semi) {
-                println!("found WEIRD token: {:?}", self.curr);
                 return Err(());
             }
 
-            println!("generating static val node!");
             Ok(ItemKind::StaticVal(Box::new(StaticValNode {
                 ty,
                 mutability,
@@ -639,6 +630,16 @@ impl Parser {
         }
     }
 
+    fn eat_kw(&mut self, kw: Keyword) -> bool {
+        if let Token::Keyword(_, curr_kw) = self.curr {
+            if kw == curr_kw {
+                self.advance();
+                return true;
+            }
+        }
+        false
+    }
+
     fn advance(&mut self) {
         if let Some(next) = self.token_stream.get_next() {
             self.curr = next.clone();
@@ -649,4 +650,4 @@ impl Parser {
     }
 }
 
-const EOF_TOKEN: Token = Token::EOF(SingleTokenSpan::new(usize::MAX));
+const EOF_TOKEN: Token = Token::EOF(FixedTokenSpan::new(usize::MAX));

@@ -112,6 +112,7 @@ pub struct FunctionModifiers {
 pub struct FunctionNode {
     pub(crate) name: String,
     pub(crate) modifiers: FunctionModifiers,
+    pub(crate) ret: Option<String>, // type
     pub(crate) args: Vec<(String, String)>, // type, name
     pub(crate) body: Block,
 }

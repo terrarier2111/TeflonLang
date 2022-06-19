@@ -16,7 +16,14 @@ impl Span {
     pub fn single_token(position: usize) -> Self {
         Self {
             start: position,
-            end: position + 1, // FIXME: should this just be `position`?
+            end: position + 1, // FIXME: should this be `position`?
+        }
+    }
+
+    pub fn fixed_token<const SIZE: usize>(position: usize) -> Self {
+        Self {
+            start: position,
+            end: position + SIZE, // FIXME: should this be `position - 1 + SIZE`?
         }
     }
 
@@ -59,16 +66,16 @@ impl GenericSpan for Span {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct SingleTokenSpan(pub usize);
+pub struct FixedTokenSpan<const SIZE: usize = 1>(pub usize); // FIXME: make use of FixedTokenSpan
 
-impl SingleTokenSpan {
+impl<const SIZE: usize> FixedTokenSpan<SIZE> {
     #[inline]
     pub const fn new(position: usize) -> Self {
         Self(position)
     }
 }
 
-impl GenericSpan for SingleTokenSpan {
+impl<const SIZE: usize> GenericSpan for FixedTokenSpan<SIZE> {
     #[inline]
     fn start(&self) -> usize {
         self.0
@@ -76,7 +83,7 @@ impl GenericSpan for SingleTokenSpan {
 
     #[inline]
     fn end(&self) -> usize {
-        self.0 + 1 // FIXME: should this just be self.0?
+        self.0 + SIZE // FIXME: should this be "self.0 - 1 + SIZE"?
     }
 }
 

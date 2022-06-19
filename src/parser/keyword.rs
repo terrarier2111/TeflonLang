@@ -3,7 +3,7 @@ use crate::parser::keyword::Keyword::{
     Static, Struct, Trait, Type, While,
 };
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Keyword {
     Pub,
     Static,

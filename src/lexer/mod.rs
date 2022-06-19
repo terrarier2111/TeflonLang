@@ -1,5 +1,5 @@
 use crate::diagnostics::builder::DiagnosticBuilder;
-use crate::diagnostics::span::{SingleTokenSpan, Span};
+use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::lexer::token::{BinOp, Token};
 use crate::parser::keyword::Keyword;
 
@@ -59,22 +59,22 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
                 }
                 cursor = new_cursor - 1;
             }
-            '(' => curr_token = Some(Token::OpenParen(SingleTokenSpan::new(cursor))),
-            ')' => curr_token = Some(Token::ClosedParen(SingleTokenSpan::new(cursor))),
-            '{' => curr_token = Some(Token::OpenCurly(SingleTokenSpan::new(cursor))),
-            '}' => curr_token = Some(Token::ClosedCurly(SingleTokenSpan::new(cursor))),
-            '[' => curr_token = Some(Token::OpenBracket(SingleTokenSpan::new(cursor))),
-            ']' => curr_token = Some(Token::ClosedBracket(SingleTokenSpan::new(cursor))),
-            '<' => curr_token = Some(Token::OpenAngle(SingleTokenSpan::new(cursor))),
-            '>' => curr_token = Some(Token::ClosedAngle(SingleTokenSpan::new(cursor))),
-            ':' => curr_token = Some(Token::Colon(SingleTokenSpan::new(cursor))),
-            ';' => curr_token = Some(Token::Semi(SingleTokenSpan::new(cursor))),
-            ',' => curr_token = Some(Token::Comma(SingleTokenSpan::new(cursor))),
-            '#' => curr_token = Some(Token::Hashtag(SingleTokenSpan::new(cursor))),
-            '\'' => curr_token = Some(Token::Apostrophe(SingleTokenSpan::new(cursor))),
-            '?' => curr_token = Some(Token::Question(SingleTokenSpan::new(cursor))),
-            '_' => curr_token = Some(Token::Underscore(SingleTokenSpan::new(cursor))),
-            '.' => curr_token = Some(Token::Dot(SingleTokenSpan::new(cursor))),
+            '(' => curr_token = Some(Token::OpenParen(FixedTokenSpan::new(cursor))),
+            ')' => curr_token = Some(Token::ClosedParen(FixedTokenSpan::new(cursor))),
+            '{' => curr_token = Some(Token::OpenCurly(FixedTokenSpan::new(cursor))),
+            '}' => curr_token = Some(Token::ClosedCurly(FixedTokenSpan::new(cursor))),
+            '[' => curr_token = Some(Token::OpenBracket(FixedTokenSpan::new(cursor))),
+            ']' => curr_token = Some(Token::ClosedBracket(FixedTokenSpan::new(cursor))),
+            '<' => curr_token = Some(Token::OpenAngle(FixedTokenSpan::new(cursor))),
+            '>' => curr_token = Some(Token::ClosedAngle(FixedTokenSpan::new(cursor))),
+            ':' => curr_token = Some(Token::Colon(FixedTokenSpan::new(cursor))),
+            ';' => curr_token = Some(Token::Semi(FixedTokenSpan::new(cursor))),
+            ',' => curr_token = Some(Token::Comma(FixedTokenSpan::new(cursor))),
+            '#' => curr_token = Some(Token::Hashtag(FixedTokenSpan::new(cursor))),
+            '\'' => curr_token = Some(Token::Apostrophe(FixedTokenSpan::new(cursor))),
+            '?' => curr_token = Some(Token::Question(FixedTokenSpan::new(cursor))),
+            '_' => curr_token = Some(Token::Underscore(FixedTokenSpan::new(cursor))),
+            '.' => curr_token = Some(Token::Dot(FixedTokenSpan::new(cursor))),
             '=' => curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Eq)),
             '/' => match input[cursor + 1] {
                 '/' => {
@@ -110,14 +110,23 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
                 }
             }
             '-' => {
-                if input[cursor + 1] == '=' {
-                    curr_token = Some(Token::BinOp(
-                        Span::multi_token(cursor, cursor + 1),
-                        BinOp::SubEq,
-                    ));
-                } else {
-                    curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Sub));
-                }
+                let token = match input[cursor + 1] {
+                    '=' => {
+                        let ret = Token::BinOp(
+                            Span::multi_token(cursor, cursor + 1),
+                            BinOp::SubEq,
+                        );
+                        cursor += 1;
+                        ret
+                    },
+                    '>' => {
+                        let ret = Token::Arrow(FixedTokenSpan::new(cursor));
+                        cursor += 1;
+                        ret
+                    },
+                    _ => Token::BinOp(Span::single_token(cursor), BinOp::Sub),
+                };
+                curr_token = Some(token);
             }
             '*' => {
                 if input[cursor + 1] == '=' {
@@ -131,7 +140,7 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
             }
             ('\r' | '\n') => {} // this is a noop
             _ => {
-                curr_token = Some(Token::Invalid(SingleTokenSpan::new(cursor), curr));
+                curr_token = Some(Token::Invalid(FixedTokenSpan::new(cursor), curr));
             }
         }
         if let Some(token) = curr_token.take() {
@@ -140,7 +149,7 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
         cursor += 1;
     }
 
-    tokens.push(Token::EOF(SingleTokenSpan::new(input.as_slice().len())));
+    tokens.push(Token::EOF(FixedTokenSpan::new(input.as_slice().len())));
 
     if diagnostics_builder.is_empty() {
         Ok(tokens)

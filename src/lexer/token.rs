@@ -1,4 +1,4 @@
-use crate::diagnostics::span::{SingleTokenSpan, Span};
+use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::parser::keyword::Keyword;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -25,6 +25,7 @@ pub enum TokenType {
     Dot,           // .
     Question,      // ?
     Underscore,    // _
+    Arrow,         // ->
     Comment,
     EOF, // end of file
     Invalid,
@@ -47,26 +48,27 @@ pub enum Token {
     BinOp(Span, BinOp),
     StrLit(Span, String),
     NumLit(Span, String),
-    Comma(SingleTokenSpan),         // ,
-    OpenParen(SingleTokenSpan),     // (
-    ClosedParen(SingleTokenSpan),   // )
-    OpenCurly(SingleTokenSpan),     // {
-    ClosedCurly(SingleTokenSpan),   // }
-    OpenBracket(SingleTokenSpan),   // [
-    ClosedBracket(SingleTokenSpan), // ]
-    Colon(SingleTokenSpan),         // :
-    Semi(SingleTokenSpan),          // ;
-    Apostrophe(SingleTokenSpan),    // '
-    OpenAngle(SingleTokenSpan),     // <
-    ClosedAngle(SingleTokenSpan),   // >
-    Hashtag(SingleTokenSpan),       // #
-    Star(SingleTokenSpan),          // *
-    Dot(SingleTokenSpan),           // .
-    Question(SingleTokenSpan),      // ?
-    Underscore(SingleTokenSpan),    // _
+    Comma(FixedTokenSpan),         // ,
+    OpenParen(FixedTokenSpan),     // (
+    ClosedParen(FixedTokenSpan),   // )
+    OpenCurly(FixedTokenSpan),     // {
+    ClosedCurly(FixedTokenSpan),   // }
+    OpenBracket(FixedTokenSpan),   // [
+    ClosedBracket(FixedTokenSpan), // ]
+    Colon(FixedTokenSpan),         // :
+    Semi(FixedTokenSpan),          // ;
+    Apostrophe(FixedTokenSpan),    // '
+    OpenAngle(FixedTokenSpan),     // <
+    ClosedAngle(FixedTokenSpan),   // >
+    Hashtag(FixedTokenSpan),       // #
+    Star(FixedTokenSpan),          // *
+    Dot(FixedTokenSpan),           // .
+    Question(FixedTokenSpan),      // ?
+    Underscore(FixedTokenSpan),    // _
+    Arrow(FixedTokenSpan<2>),      // ->
     Comment(Span, String),
-    EOF(SingleTokenSpan), // end of file
-    Invalid(SingleTokenSpan, char),
+    EOF(FixedTokenSpan), // end of file
+    Invalid(FixedTokenSpan, char),
 }
 
 impl Token {
@@ -95,6 +97,7 @@ impl Token {
             Token::Dot(sp) => Span::single_token(sp.0),
             Token::Question(sp) => Span::single_token(sp.0),
             Token::Underscore(sp) => Span::single_token(sp.0),
+            Token::Arrow(sp) => Span::fixed_token::<2>(sp.0),
             Token::Comment(sp, _) => *sp,
             Token::EOF(sp) => Span::single_token(sp.0),
         }
@@ -125,6 +128,7 @@ impl Token {
             Token::Question(_) => TokenType::Question,
             Token::Underscore(_) => TokenType::Underscore,
             Token::Comment(_, _) => TokenType::Comment,
+            Token::Arrow(_) => TokenType::Arrow,
             Token::Invalid(_, _) => TokenType::Invalid,
             Token::EOF(_) => TokenType::EOF,
         }
