@@ -112,18 +112,15 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
             '-' => {
                 let token = match input[cursor + 1] {
                     '=' => {
-                        let ret = Token::BinOp(
-                            Span::multi_token(cursor, cursor + 1),
-                            BinOp::SubEq,
-                        );
+                        let ret = Token::BinOp(Span::multi_token(cursor, cursor + 1), BinOp::SubEq);
                         cursor += 1;
                         ret
-                    },
+                    }
                     '>' => {
                         let ret = Token::Arrow(FixedTokenSpan::new(cursor));
                         cursor += 1;
                         ret
-                    },
+                    }
                     _ => Token::BinOp(Span::single_token(cursor), BinOp::Sub),
                 };
                 curr_token = Some(token);

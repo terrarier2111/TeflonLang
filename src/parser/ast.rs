@@ -15,6 +15,7 @@ pub enum AstNode {
     Ident(String),
     BinaryExpr(Box<BinaryExprNode>),
     CallExpr(CallExprNode),
+    Block(Block),
 }
 
 #[derive(Debug, Clone)]
@@ -28,7 +29,7 @@ pub enum StmtKind {
     Item(ItemKind),
     LocalAssign(LocalAssign),
     Expr(AstNode),
-    Semi(AstNode),
+    Semi(AstNode), // FIXME: for now we put block exprs into Semi stmts, but change this ASAP
     Empty,
 }
 
@@ -113,7 +114,7 @@ pub struct FunctionModifiers {
 pub struct FunctionNode {
     pub(crate) name: String,
     pub(crate) modifiers: FunctionModifiers,
-    pub(crate) ret: Option<String>, // type
+    pub(crate) ret: Option<String>,         // type
     pub(crate) args: Vec<(String, String)>, // type, name
     pub(crate) body: Block,
 }
@@ -131,7 +132,8 @@ pub struct LAssign {
 }
 
 #[derive(Debug, Clone)]
-pub struct LDecAssign { // LocalDeclareAssignment
+pub struct LDecAssign {
+    // LocalDeclareAssignment
     pub(crate) ty: Option<String>,
     pub(crate) val: LAssign,
 }

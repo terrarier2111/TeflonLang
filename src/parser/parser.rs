@@ -1,10 +1,20 @@
 use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{FixedTokenSpan, Span};
+use crate::lexer;
 use crate::lexer::token::{BinOp, Token, TokenType};
-use crate::parser::ast::{AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType, StaticValNode, Stmt, StmtKind};
+use crate::parser::ast::{
+    AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
+    FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType,
+    StaticValNode, Stmt, StmtKind,
+};
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
 use crate::parser::token_stream::TokenStream;
+use std::fs;
+
+// converts a stream of tokens into an ast
+// (a compiler is just a program that operates on data
+// and the parser transforms a stream of tokens into data we can use later)
 
 pub struct Parser {
     token_stream: TokenStream,
@@ -126,7 +136,7 @@ impl Parser {
                 if !self.eat(TokenType::Semi) {
                     return Err(());
                 }
-                
+
                 return Ok(StmtKind::LocalAssign(LocalAssign::DecAssign(LDecAssign {
                     ty,
                     val: LAssign {
@@ -167,10 +177,7 @@ impl Parser {
         None
     }*/
 
-    fn parse_function(
-        &mut self,
-        visibility: Option<Visibility>,
-    ) -> Result<ItemKind, ()> {
+    fn parse_function(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
         // skip the `fn` keyword
         self.advance();
         if let Token::Ident(_, content) = &self.curr {
@@ -631,6 +638,11 @@ impl Parser {
 
     /// parses an expression for example in the body of a method
     fn parse_expr(&mut self) -> Result<Option<AstNode>, ()> {
+        if self.check(TokenType::OpenCurly) {
+            return self
+                .parse_block_no_attr()
+                .map(|block| Some(AstNode::Block(block)));
+        }
         self.parse_bin_op()
     }
 
@@ -652,6 +664,10 @@ impl Parser {
             Token::EOF(_) => Err(()),
             _ => Err(()),
         }
+    }
+
+    fn check(&self, token: TokenType) -> bool {
+        self.curr.to_type() == token
     }
 
     fn eat(&mut self, token: TokenType) -> bool {
@@ -684,3 +700,30 @@ impl Parser {
 }
 
 const EOF_TOKEN: Token = Token::EOF(FixedTokenSpan::new(usize::MAX));
+
+#[cfg(test)]
+fn test_file(path: String, assumed: Box<dyn Fn(Vec<Token>, Crate) -> bool>) -> bool {
+    let file = fs::read_to_string(path).unwrap();
+    let lexed = lexer::lex(file).unwrap();
+    let lexed_cloned = lexed.clone();
+    let mut token_stream = TokenStream::new(lexed);
+    let mut parser = Parser::new(token_stream);
+    let krate = parser.parse_crate().unwrap();
+    assumed(lexed_cloned, krate)
+}
+
+#[test]
+fn test_func() {
+    assert!(test_file(
+        String::from("tests/func.tf"),
+        Box::new(|tokens, krate| tokens.len() == 33 && krate.items.len() == 2)
+    ));
+}
+
+#[test]
+fn test_static() {
+    assert!(test_file(
+        String::from("tests/static.tf"),
+        Box::new(|tokens, krate| tokens.len() == 24 && krate.items.len() == 2)
+    ));
+}
