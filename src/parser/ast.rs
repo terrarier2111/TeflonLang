@@ -26,6 +26,7 @@ pub struct Stmt {
 #[derive(Debug, Clone)]
 pub enum StmtKind {
     Item(ItemKind),
+    LocalAssign(LocalAssign),
     Expr(AstNode),
     Semi(AstNode),
     Empty,
@@ -115,6 +116,24 @@ pub struct FunctionNode {
     pub(crate) ret: Option<String>, // type
     pub(crate) args: Vec<(String, String)>, // type, name
     pub(crate) body: Block,
+}
+
+#[derive(Debug, Clone)]
+pub enum LocalAssign {
+    Assign(LAssign),
+    DecAssign(LDecAssign),
+}
+
+#[derive(Debug, Clone)]
+pub struct LAssign {
+    pub(crate) name: String,
+    pub(crate) val: AstNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct LDecAssign { // LocalDeclareAssignment
+    pub(crate) ty: Option<String>,
+    pub(crate) val: LAssign,
 }
 
 #[derive(Debug, Copy, Clone)]

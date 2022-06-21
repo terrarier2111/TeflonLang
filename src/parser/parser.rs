@@ -1,10 +1,7 @@
 use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{FixedTokenSpan, Span};
-use crate::lexer::token::{Token, TokenType};
-use crate::parser::ast::{
-    AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
-    FunctionModifiers, FunctionNode, ItemKind, NumberType, StaticValNode, Stmt, StmtKind,
-};
+use crate::lexer::token::{BinOp, Token, TokenType};
+use crate::parser::ast::{AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType, StaticValNode, Stmt, StmtKind};
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
 use crate::parser::token_stream::TokenStream;
@@ -110,6 +107,41 @@ impl Parser {
         }
     }
 
+    /// assumes the let keyword was already skipped
+    fn parse_let(&mut self) -> Result<StmtKind, ()> {
+        let name = self.parse_ident();
+        if let Some((_, name)) = name {
+            let ty = if self.eat(TokenType::Colon) {
+                self.parse_ident().map(|x| x.1)
+            } else {
+                None
+            };
+            if let Token::BinOp(_, BinOp::Eq) = self.curr {
+                self.advance();
+                let val = self.parse_expr()?;
+                if val.is_none() {
+                    return Err(());
+                }
+
+                if !self.eat(TokenType::Semi) {
+                    return Err(());
+                }
+                
+                return Ok(StmtKind::LocalAssign(LocalAssign::DecAssign(LDecAssign {
+                    ty,
+                    val: LAssign {
+                        name,
+                        val: val.unwrap(),
+                    },
+                })));
+            } else {
+                Err(())
+            }
+        } else {
+            Err(())
+        }
+    }
+
     /*
     fn parse_function_header(&mut self) -> Option<AstNode> {
         /*if let Some(curr) = self.curr {
@@ -175,8 +207,6 @@ impl Parser {
                 return Err(());
             }
 
-            println!("find ret!");
-
             let ret = if self.eat(TokenType::Arrow) {
                 let val = self.parse_ident();
                 val.map(|x| x.1)
@@ -185,8 +215,6 @@ impl Parser {
             };
 
             let body = self.parse_block_no_attr()?;
-
-            println!("after body!");
 
             Ok(ItemKind::FunctionDef(Box::new(FunctionNode {
                 name: content,
@@ -388,6 +416,11 @@ impl Parser {
     }
 
     fn parse_stmt_or_expr(&mut self) -> Result<StmtKind, ()> {
+        // handle `let x = y;`
+        if self.eat_kw(Keyword::Let) {
+            return self.parse_let();
+        }
+        // FIXME: handle `x = y;`
         let expr = self.parse_expr()?;
         if self.eat(TokenType::Semi) {
             if let Some(expr) = expr {
@@ -406,7 +439,7 @@ impl Parser {
             let combined = self.parse_stmt_or_expr()?;
             match combined {
                 StmtKind::Item(_) => {} // FIXME: err
-                StmtKind::Semi(_) | StmtKind::Empty => {
+                StmtKind::Semi(_) | StmtKind::LocalAssign(_) | StmtKind::Empty => {
                     stmts.push(combined);
                 }
                 StmtKind::Expr(_) => {
