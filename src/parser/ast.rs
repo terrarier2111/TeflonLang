@@ -38,6 +38,7 @@ pub enum ItemKind {
     StaticVal(Box<StaticValNode>),
     ConstVal(Box<ConstValNode>),
     FunctionDef(Box<FunctionNode>),
+    StructDef(StructDef),
 }
 
 #[derive(Debug, Clone)]
@@ -136,6 +137,20 @@ pub struct LDecAssign {
     // LocalDeclareAssignment
     pub(crate) ty: Option<String>,
     pub(crate) val: LAssign,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructDef {
+    pub(crate) visibility: Visibility,
+    pub(crate) name: String,
+    pub(crate) fields: Vec<StructFieldDef>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructFieldDef {
+    pub(crate) visibility: Visibility,
+    pub(crate) name: String,
+    pub(crate) ty: String,
 }
 
 #[derive(Debug, Copy, Clone)]

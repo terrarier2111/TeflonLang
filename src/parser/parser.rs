@@ -2,11 +2,7 @@ use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::lexer;
 use crate::lexer::token::{BinOp, Token, TokenType};
-use crate::parser::ast::{
-    AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
-    FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType,
-    StaticValNode, Stmt, StmtKind,
-};
+use crate::parser::ast::{AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType, StaticValNode, Stmt, StmtKind, StructDef, StructFieldDef};
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
 use crate::parser::token_stream::TokenStream;
@@ -189,12 +185,12 @@ impl Parser {
             }
             println!("open paren {}", content);
             let mut args = vec![];
-            if let Some(param) = self.parse_param() {
+            if let Some(param) = self.parse_param()? {
                 args.push(param);
                 let mut extra_comma = false;
                 let mut emitted_err = false;
                 while self.eat(TokenType::Comma) {
-                    if let Some(item) = self.parse_param() {
+                    if let Some(item) = self.parse_param()? {
                         args.push(item);
                     } else {
                         if extra_comma {
@@ -238,24 +234,24 @@ impl Parser {
         }
     }
 
-    fn parse_param(&mut self) -> Option<(String, String)> {
+    fn parse_param(&mut self) -> Result<Option<(String, String)>, ()> {
         if let Token::Ident(_, name) = &self.curr {
             let name = name.clone();
             self.advance();
 
             if !self.eat(TokenType::Colon) {
-                return None;
+                return Err(());
             }
 
             if let Token::Ident(_, ty) = &self.curr {
                 let ret = Some((name, ty.clone()));
                 self.advance();
-                ret
+                Ok(ret)
             } else {
-                None
+                Ok(None)
             }
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -515,6 +511,7 @@ impl Parser {
     }
 
     fn parse_const(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
+        // skip the `const` keyword
         self.advance();
 
         if let Token::Ident(_, name) = &self.curr {
@@ -549,6 +546,73 @@ impl Parser {
         }
     }
 
+    fn parse_struct_def(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
+        // skip the `struct` keyword
+        self.advance();
+        if let Some((_, name)) = self.parse_ident() {
+            if !self.eat(TokenType::OpenCurly) {
+                return Err(());
+            }
+
+            fn parse_param_with_vis(parser: &mut Parser) -> Result<Option<(Visibility, String, String)>, ()> {
+                let vis = parser.parse_visibility();
+
+                let param = parser.parse_param()?;
+                if let Some(param) = param {
+                    Ok(Some((vis.unwrap_or(Visibility::Private), param.0, param.1)))
+                } else {
+                    if vis.is_none() {
+                        Ok(None)
+                    } else {
+                        Err(())
+                    }
+                }
+            }
+
+            let mut fields = vec![];
+            if let Some(param) = parse_param_with_vis(self)? {
+                fields.push(StructFieldDef {
+                    visibility: param.0,
+                    name: param.1,
+                    ty: param.2,
+                });
+                let mut extra_comma = false;
+                let mut emitted_err = false;
+                while self.eat(TokenType::Comma) {
+                    if let Some((visibility, name, ty)) = parse_param_with_vis(self)? {
+                        fields.push(StructFieldDef {
+                            visibility,
+                            name,
+                            ty,
+                        });
+                    } else {
+                        if extra_comma {
+                            if !emitted_err {
+                                // FIXME: handle error!
+                                emitted_err = true;
+                            }
+                            // break;
+                        } else {
+                            extra_comma = true;
+                        }
+                    }
+                }
+            }
+
+            if !self.eat(TokenType::ClosedCurly) {
+                return Err(());
+            }
+
+            Ok(ItemKind::StructDef(StructDef {
+                visibility: visibility.unwrap_or(Visibility::Private),
+                name,
+                fields,
+            }))
+        } else {
+            Err(())
+        }
+    }
+
     fn parse_glob(&mut self) -> Result<Option<ItemKind>, ()> {
         let visibility = self.parse_visibility()/*.unwrap_or(Visibility::Private)*/;
 
@@ -570,7 +634,7 @@ impl Parser {
                     Keyword::Rt => Err(()), // FIXME: ?
                     Keyword::Fn => self.parse_function(visibility).map(|item| Some(item)),
                     Keyword::Enum => Err(()),
-                    Keyword::Struct => Err(()),
+                    Keyword::Struct => self.parse_struct_def(visibility).map(|item| Some(item)),
                     Keyword::Mod => Err(()),
                     Keyword::Impl => Err(()),
                     Keyword::Async => Err(()),
@@ -725,5 +789,13 @@ fn test_static() {
     assert!(test_file(
         String::from("tests/static.tf"),
         Box::new(|tokens, krate| tokens.len() == 24 && krate.items.len() == 2)
+    ));
+}
+
+#[test]
+fn test_struct() {
+    assert!(test_file(
+        String::from("tests/struct.tf"),
+        Box::new(|tokens, krate| tokens.len() == 19 && krate.items.len() == 2)
     ));
 }
