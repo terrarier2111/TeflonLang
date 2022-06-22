@@ -2,7 +2,7 @@ use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::lexer;
 use crate::lexer::token::{BinOp, Token, TokenType};
-use crate::parser::ast::{AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType, StaticValNode, Stmt, StmtKind, StructDef, StructFieldDef};
+use crate::parser::ast::{AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionHeader, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType, StaticValNode, Stmt, StmtKind, StructDef, StructFieldDef, TraitDef};
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
 use crate::parser::token_stream::TokenStream;
@@ -173,36 +173,22 @@ impl Parser {
         None
     }*/
 
-    fn parse_function(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
+    fn parse_function_header(&mut self) -> Result<FunctionHeader, ()> {
         // skip the `fn` keyword
         self.advance();
-        if let Token::Ident(_, content) = &self.curr {
+        if let Token::Ident(_, name) = &self.curr {
             println!("ident!");
-            let content = content.clone();
+            let name = name.clone();
             self.advance();
             if !self.eat(TokenType::OpenParen) {
                 return Err(());
             }
-            println!("open paren {}", content);
+            println!("open paren {}", name);
             let mut args = vec![];
-            if let Some(param) = self.parse_param()? {
+            while let Some(param) = self.parse_param()? {
                 args.push(param);
-                let mut extra_comma = false;
-                let mut emitted_err = false;
-                while self.eat(TokenType::Comma) {
-                    if let Some(item) = self.parse_param()? {
-                        args.push(item);
-                    } else {
-                        if extra_comma {
-                            if !emitted_err {
-                                // FIXME: handle error!
-                                emitted_err = true;
-                            }
-                            // break;
-                        } else {
-                            extra_comma = true;
-                        }
-                    }
+                if !self.eat(TokenType::Comma) {
+                    break;
                 }
             }
 
@@ -217,21 +203,28 @@ impl Parser {
                 None
             };
 
-            let body = self.parse_block_no_attr()?;
-
-            Ok(ItemKind::FunctionDef(Box::new(FunctionNode {
-                name: content,
-                modifiers: FunctionModifiers {
-                    constness: Constness::Undefined,
-                    visibility: visibility.unwrap_or(Visibility::Private),
-                },
-                ret,
+            Ok(FunctionHeader {
+                name,
                 args,
-                body,
-            })))
+                ret,
+            })
         } else {
             Err(()) // FIXME: return error!
         }
+    }
+
+    fn parse_function(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
+        let header = self.parse_function_header()?;
+        let body = self.parse_block_no_attr()?;
+
+        Ok(ItemKind::FunctionDef(Box::new(FunctionNode {
+            modifiers: FunctionModifiers {
+                constness: Constness::Undefined,
+                visibility: visibility.unwrap_or(Visibility::Private),
+            },
+            header,
+            body,
+        })))
     }
 
     fn parse_param(&mut self) -> Result<Option<(String, String)>, ()> {
@@ -570,32 +563,14 @@ impl Parser {
             }
 
             let mut fields = vec![];
-            if let Some(param) = parse_param_with_vis(self)? {
+            while let Some((visibility, name, ty)) = parse_param_with_vis(self)? {
                 fields.push(StructFieldDef {
-                    visibility: param.0,
-                    name: param.1,
-                    ty: param.2,
+                    visibility,
+                    name,
+                    ty,
                 });
-                let mut extra_comma = false;
-                let mut emitted_err = false;
-                while self.eat(TokenType::Comma) {
-                    if let Some((visibility, name, ty)) = parse_param_with_vis(self)? {
-                        fields.push(StructFieldDef {
-                            visibility,
-                            name,
-                            ty,
-                        });
-                    } else {
-                        if extra_comma {
-                            if !emitted_err {
-                                // FIXME: handle error!
-                                emitted_err = true;
-                            }
-                            // break;
-                        } else {
-                            extra_comma = true;
-                        }
-                    }
+                if !self.eat(TokenType::Comma) {
+                    break;
                 }
             }
 
@@ -607,6 +582,38 @@ impl Parser {
                 visibility: visibility.unwrap_or(Visibility::Private),
                 name,
                 fields,
+            }))
+        } else {
+            Err(())
+        }
+    }
+
+    fn parse_trait_def(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
+        // skip the `trait` keyword
+        self.advance();
+        if let Some((_, name)) = self.parse_ident() {
+            if !self.eat(TokenType::OpenCurly) {
+                return Err(());
+            }
+
+            let mut methods = vec![];
+            while self.check_kw(Keyword::Fn) {
+                let header = self.parse_function_header()?;
+                
+                if !self.eat(TokenType::Semi) {
+                    return Err(());
+                }
+                methods.push(header);
+            }
+
+            if !self.eat(TokenType::ClosedCurly) {
+                return Err(());
+            }
+
+            Ok(ItemKind::TraitDef(TraitDef {
+                visibility: visibility.unwrap_or(Visibility::Private),
+                name,
+                methods,
             }))
         } else {
             Err(())
@@ -640,7 +647,7 @@ impl Parser {
                     Keyword::Async => Err(()),
                     Keyword::Unsafe => Err(()),
                     Keyword::Extern => Err(()),
-                    Keyword::Trait => Err(()),
+                    Keyword::Trait => self.parse_trait_def(visibility).map(|item| Some(item)),
                     Keyword::Type => Err(()),
                     _ => Ok(None), // FIXME: error
                 };
@@ -734,6 +741,14 @@ impl Parser {
         self.curr.to_type() == token
     }
 
+    fn check_kw(&self, kw: Keyword) -> bool {
+        if let Token::Keyword(_, actual) = self.curr {
+            actual == kw
+        } else {
+            false
+        }
+    }
+
     fn eat(&mut self, token: TokenType) -> bool {
         if self.curr.to_type() == token {
             self.advance();
@@ -762,6 +777,8 @@ impl Parser {
         self.token_stream.advance();
     }
 }
+
+
 
 const EOF_TOKEN: Token = Token::EOF(FixedTokenSpan::new(usize::MAX));
 
@@ -797,5 +814,13 @@ fn test_struct() {
     assert!(test_file(
         String::from("tests/struct.tf"),
         Box::new(|tokens, krate| tokens.len() == 19 && krate.items.len() == 2)
+    ));
+}
+
+#[test]
+fn test_trait() {
+    assert!(test_file(
+        String::from("tests/trait.tf"),
+        Box::new(|tokens, krate| tokens.len() == 29 && krate.items.len() == 2)
     ));
 }

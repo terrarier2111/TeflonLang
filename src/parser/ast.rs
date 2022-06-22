@@ -39,6 +39,7 @@ pub enum ItemKind {
     ConstVal(Box<ConstValNode>),
     FunctionDef(Box<FunctionNode>),
     StructDef(StructDef),
+    TraitDef(TraitDef),
 }
 
 #[derive(Debug, Clone)]
@@ -113,11 +114,16 @@ pub struct FunctionModifiers {
 
 #[derive(Debug, Clone)]
 pub struct FunctionNode {
-    pub(crate) name: String,
     pub(crate) modifiers: FunctionModifiers,
-    pub(crate) ret: Option<String>,         // type
-    pub(crate) args: Vec<(String, String)>, // type, name
+    pub(crate) header: FunctionHeader,
     pub(crate) body: Block,
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionHeader {
+    pub(crate) name: String,
+    pub(crate) args: Vec<(String, String)>, // type, name
+    pub(crate) ret: Option<String>, // type
 }
 
 #[derive(Debug, Clone)]
@@ -151,6 +157,13 @@ pub struct StructFieldDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
     pub(crate) ty: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TraitDef {
+    pub(crate) visibility: Visibility,
+    pub(crate) name: String,
+    pub(crate) methods: Vec<FunctionHeader>,
 }
 
 #[derive(Debug, Copy, Clone)]
