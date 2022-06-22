@@ -2,7 +2,7 @@ use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::lexer;
 use crate::lexer::token::{BinOp, Token, TokenType};
-use crate::parser::ast::{AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionHeader, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType, StaticValNode, Stmt, StmtKind, StructDef, StructFieldDef, TraitDef};
+use crate::parser::ast::{AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionHeader, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType, StaticValNode, Stmt, StmtKind, StructDef, StructFieldDef, StructImpl, TraitDef};
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
 use crate::parser::token_stream::TokenStream;
@@ -17,6 +17,9 @@ pub struct Parser {
     curr: Token,
     diagnostics: DiagnosticBuilder,
 }
+
+// FIXME: should we actually do this here?
+// FIXME: check for duplicate parameter/function names
 
 impl Parser {
     // FIXME: see: https://www.youtube.com/watch?v=4m7ubrdbWQU
@@ -148,31 +151,6 @@ impl Parser {
         }
     }
 
-    /*
-    fn parse_function_header(&mut self) -> Option<AstNode> {
-        /*if let Some(curr) = self.curr {
-            match curr {
-                Token::Keyword(_, kw) => {
-                    match kw {
-                        Keyword::Pub => {}
-                        Keyword::Rt => {}
-                        Keyword::Fn => {
-                            // FIXME: parse: IDENT(ARGS)
-                        },
-                        // Keyword::Async => {}
-                        // Keyword::Unsafe => {}
-                        // Keyword::Extern => {}
-                        _ => None, // FIXME: do proper error recovery!
-                    }
-                }
-                _ => None,
-            }
-        } else {
-            None
-        }*/
-        None
-    }*/
-
     fn parse_function_header(&mut self) -> Result<FunctionHeader, ()> {
         // skip the `fn` keyword
         self.advance();
@@ -250,24 +228,10 @@ impl Parser {
 
     fn parse_comma_separated(&mut self) -> Vec<AstNode> {
         let mut ret = vec![];
-        if let Ok(Some(item)) = self.parse_expr() {
+        while let Ok(Some(item)) = self.parse_expr() {
             ret.push(item);
-            let mut extra_comma = false;
-            let mut emitted_err = false;
-            while self.eat(TokenType::Comma) {
-                if let Ok(Some(item)) = self.parse_expr() {
-                    ret.push(item);
-                } else {
-                    if extra_comma {
-                        if !emitted_err {
-                            // FIXME: handle error!
-                            emitted_err = true;
-                        }
-                        // break;
-                    } else {
-                        extra_comma = true;
-                    }
-                }
+            if !self.eat(TokenType::Comma) {
+                break;
             }
         }
         ret
@@ -355,53 +319,6 @@ impl Parser {
             }
         }
     }
-
-    /*
-    fn parse_kw_glob(&mut self, prev: Option<Vec<Keyword>>) -> Result<Option<AstNode>, ()> {
-        if let Some(curr) = self.curr {
-            match curr {
-                Token::Keyword(_, kw) => {
-                    match kw {
-                        Keyword::Pub => {
-                            // if prev is not empty, error!
-                            // struct/enum/function/constant/static definition
-                        },
-                        Keyword::Static => {
-                            // variable
-                        },
-                        //Keyword::Rt => {}
-                        Keyword::Fn => {}
-                        Keyword::Enum => {}
-                        Keyword::Struct => {}
-                        //!Keyword::Mod => {}
-                        Keyword::Impl => {}
-                        Keyword::Async => {}
-                        Keyword::Unsafe => {}
-                        //!Keyword::Extern => {}
-                        Keyword::Trait => {}
-                        Keyword::Type => {}
-                        _ => Err(()),
-                    }
-                },
-                // Token::StrLit(_, _) => {}
-                //!Token::OpenCurly(_) => {}
-                // Token::OpenBracket(_) => {}
-                // Token::Eq(_) => {}
-                // Token::Colon(_) => {}
-                //!Token::Semi(_) => {}
-                // Token::Apostrophe(_) => {}
-                // Token::OpenAngle(_) => {}
-                // Token::Star(_) => {}
-                // Token::Question(_) => {}
-                // Token::Underscore(_) => {}
-                Token::Comment(_, _) => Ok(None),
-                Token::EOF(_) => Err(()),
-                _ => Err(())
-            }
-        } else {
-            Err(())
-        }
-    }*/
 
     fn parse_visibility(&mut self) -> Option<Visibility> {
         if self.eat_kw(Keyword::Pub) {
@@ -620,6 +537,50 @@ impl Parser {
         }
     }
 
+    fn parse_impl_block(&mut self) -> Result<ItemKind, ()> {
+        // skip the `impl` keyword
+        self.advance();
+        if let Some((_, name)) = self.parse_ident() {
+            let (impl_trait, name) = if self.eat_kw(Keyword::For) {
+                if let Some((_, tait)) = self.parse_ident() {
+                    (Some(name), tait)
+                } else {
+                    return Err(());
+                }
+            } else {
+                (None, name)
+            };
+
+            if !self.eat(TokenType::OpenCurly) {
+                return Err(());
+            }
+
+            let mut methods = vec![];
+            let mut visibility = self.parse_visibility();
+            while self.check_kw(Keyword::Fn) {
+                let function = self.parse_function(visibility.take())?;
+                methods.push(function);
+                visibility = self.parse_visibility();
+            }
+            // check for invalid trailing visibility modifier
+            if visibility.is_some() {
+                return Err(());
+            }
+
+            if !self.eat(TokenType::ClosedCurly) {
+                return Err(());
+            }
+
+            Ok(ItemKind::StructImpl(StructImpl {
+                name,
+                impl_trait,
+                methods,
+            }))
+        } else {
+            Err(())
+        }
+    }
+
     fn parse_glob(&mut self) -> Result<Option<ItemKind>, ()> {
         let visibility = self.parse_visibility()/*.unwrap_or(Visibility::Private)*/;
 
@@ -643,7 +604,7 @@ impl Parser {
                     Keyword::Enum => Err(()),
                     Keyword::Struct => self.parse_struct_def(visibility).map(|item| Some(item)),
                     Keyword::Mod => Err(()),
-                    Keyword::Impl => Err(()),
+                    Keyword::Impl => self.parse_impl_block().map(|item| Some(item)),
                     Keyword::Async => Err(()),
                     Keyword::Unsafe => Err(()),
                     Keyword::Extern => Err(()),
@@ -822,5 +783,13 @@ fn test_trait() {
     assert!(test_file(
         String::from("tests/trait.tf"),
         Box::new(|tokens, krate| tokens.len() == 29 && krate.items.len() == 2)
+    ));
+}
+
+#[test]
+fn test_impl() {
+    assert!(test_file(
+        String::from("tests/impl.tf"),
+        Box::new(|tokens, krate| tokens.len() == 33 && krate.items.len() == 4)
     ));
 }

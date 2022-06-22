@@ -40,6 +40,7 @@ pub enum ItemKind {
     FunctionDef(Box<FunctionNode>),
     StructDef(StructDef),
     TraitDef(TraitDef),
+    StructImpl(StructImpl),
 }
 
 #[derive(Debug, Clone)]
@@ -164,6 +165,13 @@ pub struct TraitDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
     pub(crate) methods: Vec<FunctionHeader>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructImpl {
+    pub(crate) name: String,
+    pub(crate) impl_trait: Option<String>,
+    pub(crate) methods: Vec<ItemKind>,
 }
 
 #[derive(Debug, Copy, Clone)]
