@@ -16,6 +16,7 @@ pub enum AstNode {
     BinaryExpr(Box<BinaryExprNode>),
     CallExpr(CallExprNode),
     Block(Block),
+    StructConstructor(StructConstructor), // FIXME: should this be renamed to StructInit?
 }
 
 #[derive(Debug, Clone)]
@@ -124,7 +125,7 @@ pub struct FunctionNode {
 pub struct FunctionHeader {
     pub(crate) name: String,
     pub(crate) args: Vec<(String, String)>, // type, name
-    pub(crate) ret: Option<String>, // type
+    pub(crate) ret: Option<String>,         // type
 }
 
 #[derive(Debug, Clone)]
@@ -172,6 +173,12 @@ pub struct StructImpl {
     pub(crate) name: String,
     pub(crate) impl_trait: Option<String>,
     pub(crate) methods: Vec<ItemKind>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructConstructor {
+    pub(crate) name: String,
+    pub(crate) fields: Vec<(String, AstNode)>,
 }
 
 #[derive(Debug, Copy, Clone)]

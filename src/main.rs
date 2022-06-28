@@ -8,6 +8,7 @@ use std::{env, fs};
 mod diagnostics;
 mod lexer;
 mod parser;
+mod tyck;
 
 fn main() {
     let path = env::current_dir().unwrap();
@@ -16,6 +17,7 @@ fn main() {
     let file = fs::read_to_string(input).unwrap();
     println!("pre-lex");
     let lexed = lexer::lex(file).unwrap();
+    let tokens = lexed.len();
     println!("lexed!");
     println!("{:?}", lexed);
     let mut token_stream = TokenStream::new(lexed);
@@ -24,6 +26,8 @@ fn main() {
     let krate = parser.parse_crate().unwrap();
     println!("parsed!");
     println!("ast: {:?}", krate);
+    println!("tokens: {}", tokens);
+    println!("items: {}", krate.items.len());
 }
 
 // https://hackernoon.com/lets-build-a-programming-language-2612349105c6

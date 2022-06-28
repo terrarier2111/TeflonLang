@@ -2,7 +2,12 @@ use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::lexer;
 use crate::lexer::token::{BinOp, Token, TokenType};
-use crate::parser::ast::{AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionHeader, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign, NumberType, StaticValNode, Stmt, StmtKind, StructDef, StructFieldDef, StructImpl, TraitDef};
+use crate::parser::ast::{
+    AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
+    FunctionHeader, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign,
+    NumberType, StaticValNode, Stmt, StmtKind, StructConstructor, StructDef, StructFieldDef,
+    StructImpl, TraitDef,
+};
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
 use crate::parser::token_stream::TokenStream;
@@ -40,16 +45,7 @@ impl Parser {
             println!("in loop!");
             match self.parse_item() {
                 Ok(val) => {
-                    if let Some(item) = val {
-                        items.push(item);
-                    } else {
-                        self.advance(); // FIXME: is this correct?
-                    }
-                    /*if let Some(node) = val {
-                        self.ast.push(node);
-                    } else {
-                        self.advance(); // FIXME: is this correct?
-                    }*/
+                    items.push(val);
                 }
                 Err(_) => {
                     self.advance(); // FIXME: is this correct?
@@ -82,28 +78,28 @@ impl Parser {
         }
     }*/
 
-    fn parse_number_expr(&mut self) -> Option<AstNode> {
+    fn parse_number_expr(&mut self) -> Result<AstNode, ()> {
         if let Token::NumLit(_, content) = &self.curr {
-            let ret = Some(AstNode::Number(NumberType::F64(
+            let ret = Ok(AstNode::Number(NumberType::F64(
                 content.parse::<f64>().unwrap(),
             ))); // FIXME: do proper parsing of numbers
             self.advance();
             ret
         } else {
-            None
+            Err(())
         }
     }
 
-    fn parse_paren_expr(&mut self) -> Option<AstNode> {
+    fn parse_paren_expr(&mut self) -> Result<AstNode, ()> {
         if !self.eat(TokenType::OpenParen) {
-            return None;
+            return Err(());
         }
-        if let Ok(expr) = self.parse_expr() {
-            if self.eat(TokenType::ClosedParen) {
-                return expr;
-            }
+        let expr = self.parse_expr()?;
+
+        if !self.eat(TokenType::ClosedParen) {
+            return Err(());
         }
-        None
+        Ok(expr)
     }
 
     fn parse_ident(&mut self) -> Option<(Span, String)> {
@@ -128,9 +124,6 @@ impl Parser {
             if let Token::BinOp(_, BinOp::Eq) = self.curr {
                 self.advance();
                 let val = self.parse_expr()?;
-                if val.is_none() {
-                    return Err(());
-                }
 
                 if !self.eat(TokenType::Semi) {
                     return Err(());
@@ -138,10 +131,7 @@ impl Parser {
 
                 return Ok(StmtKind::LocalAssign(LocalAssign::DecAssign(LDecAssign {
                     ty,
-                    val: LAssign {
-                        name,
-                        val: val.unwrap(),
-                    },
+                    val: LAssign { name, val },
                 })));
             } else {
                 Err(())
@@ -181,11 +171,7 @@ impl Parser {
                 None
             };
 
-            Ok(FunctionHeader {
-                name,
-                args,
-                ret,
-            })
+            Ok(FunctionHeader { name, args, ret })
         } else {
             Err(()) // FIXME: return error!
         }
@@ -228,7 +214,7 @@ impl Parser {
 
     fn parse_comma_separated(&mut self) -> Vec<AstNode> {
         let mut ret = vec![];
-        while let Ok(Some(item)) = self.parse_expr() {
+        while let Ok(item) = self.parse_expr() {
             ret.push(item);
             if !self.eat(TokenType::Comma) {
                 break;
@@ -237,30 +223,25 @@ impl Parser {
         ret
     }
 
-    fn parse_call(&mut self) -> Option<AstNode> {
-        if let Some(Token::Ident(_, name)) = self.token_stream.get_next() {
+    fn parse_call(&mut self) -> Result<AstNode, ()> {
+        if let Token::Ident(_, name) = &self.curr {
             let name = name.clone();
             if self.eat(TokenType::OpenParen) {
                 let args = self.parse_comma_separated();
                 if self.eat(TokenType::ClosedParen) {
-                    return Some(AstNode::CallExpr(CallExprNode { callee: name, args }));
+                    return Ok(AstNode::CallExpr(CallExprNode { callee: name, args }));
                 }
             }
         }
-        None
+        Err(())
     }
 
-    fn parse_bin_op(&mut self) -> Result<Option<AstNode>, ()> {
+    fn parse_bin_op(&mut self) -> Result<AstNode, ()> {
         let lhs = self.parse_primary()?;
-
-        if let Some(lhs) = lhs {
-            self.parse_bin_op_rhs(0, lhs)
-        } else {
-            Err(())
-        }
+        self.parse_bin_op_rhs(0, lhs)
     }
 
-    fn parse_bin_op_rhs(&mut self, prec: usize, mut lhs: AstNode) -> Result<Option<AstNode>, ()> {
+    fn parse_bin_op_rhs(&mut self, prec: usize, mut lhs: AstNode) -> Result<AstNode, ()> {
         // If this is a binop, find its precedence.
         loop {
             let bin_op = if let Token::BinOp(_, bin_op) = &self.curr {
@@ -273,15 +254,15 @@ impl Parser {
             // consume it, otherwise we are done.
             if let Some(bin_op) = bin_op {
                 if bin_op.precedence() < prec {
-                    return Ok(Some(lhs));
+                    return Ok(lhs);
                 }
             } else {
-                return Ok(Some(lhs));
+                return Ok(lhs);
             }
             let bin_op = bin_op.unwrap();
             self.eat(TokenType::BinOp);
 
-            let mut rhs = self.parse_primary()?;
+            let mut rhs = Some(self.parse_primary()?);
 
             if rhs.is_some() {
                 // If BinOp binds less tightly with RHS than the operator after RHS, let
@@ -295,20 +276,18 @@ impl Parser {
                 if let Some(next_bin_op) = next_bin_op {
                     if bin_op.precedence() < next_bin_op.precedence() {
                         rhs = rhs.map(|rhs| {
-                            self.parse_bin_op_rhs(bin_op.precedence() + 1, rhs)
-                                .unwrap()
-                                .unwrap()
+                            self.parse_bin_op_rhs(bin_op.precedence() + 1, rhs).unwrap()
                         });
                         if rhs.is_none() {
                             return Err(()); // FIXME: is this correct?
                         }
                     }
                 } else {
-                    return Ok(Some(AstNode::BinaryExpr(Box::new(BinaryExprNode {
+                    return Ok(AstNode::BinaryExpr(Box::new(BinaryExprNode {
                         lhs,
                         rhs: rhs.take().unwrap(),
                         op: bin_op,
-                    }))));
+                    })));
                 }
 
                 lhs = AstNode::BinaryExpr(Box::new(BinaryExprNode {
@@ -336,11 +315,9 @@ impl Parser {
         // FIXME: handle `x = y;`
         let expr = self.parse_expr()?;
         if self.eat(TokenType::Semi) {
-            if let Some(expr) = expr {
-                return Ok(StmtKind::Semi(expr));
-            }
+            return Ok(StmtKind::Semi(expr));
         }
-        Ok(expr.map_or(StmtKind::Empty, |node| StmtKind::Expr(node)))
+        Ok(StmtKind::Expr(expr))
     }
 
     fn parse_block_no_attr(&mut self) -> Result<Block, ()> {
@@ -351,7 +328,9 @@ impl Parser {
         while self.curr.to_type() != TokenType::ClosedCurly {
             let combined = self.parse_stmt_or_expr()?;
             match combined {
-                StmtKind::Item(_) => {} // FIXME: err
+                StmtKind::Item(_) => {
+                    return Err(());
+                }
                 StmtKind::Semi(_) | StmtKind::LocalAssign(_) | StmtKind::Empty => {
                     stmts.push(combined);
                 }
@@ -404,7 +383,7 @@ impl Parser {
                 Err(())
             }?;
 
-            let rhs = self.parse_bin_op_rhs(0, AstNode::Ident(name))?.unwrap();
+            let rhs = self.parse_bin_op_rhs(0, AstNode::Ident(name))?;
             if !self.eat(TokenType::Semi) {
                 return Err(());
             }
@@ -441,7 +420,7 @@ impl Parser {
                 Err(())
             }?;
 
-            let rhs = self.parse_bin_op_rhs(0, AstNode::Ident(name))?.unwrap();
+            let rhs = self.parse_bin_op_rhs(0, AstNode::Ident(name))?;
             if !self.eat(TokenType::Semi) {
                 return Err(());
             }
@@ -456,6 +435,36 @@ impl Parser {
         }
     }
 
+    fn parse_struct_constructor(&mut self) -> Result<AstNode, ()> {
+        if let Some((_, name)) = self.parse_ident() {
+            if !self.eat(TokenType::OpenCurly) {
+                return Err(());
+            }
+            let mut fields = vec![];
+            while let Some((_, name)) = self.parse_ident() {
+                if !self.eat(TokenType::Colon) {
+                    return Err(());
+                }
+
+                let val = self.parse_expr()?;
+                fields.push((name, val));
+
+                if !self.eat(TokenType::Comma) {
+                    break;
+                }
+            }
+            if !self.eat(TokenType::ClosedCurly) {
+                return Err(());
+            }
+            return Ok(AstNode::StructConstructor(StructConstructor {
+                name,
+                fields,
+            }));
+        } else {
+            Err(())
+        }
+    }
+
     fn parse_struct_def(&mut self, visibility: Option<Visibility>) -> Result<ItemKind, ()> {
         // skip the `struct` keyword
         self.advance();
@@ -464,7 +473,9 @@ impl Parser {
                 return Err(());
             }
 
-            fn parse_param_with_vis(parser: &mut Parser) -> Result<Option<(Visibility, String, String)>, ()> {
+            fn parse_param_with_vis(
+                parser: &mut Parser,
+            ) -> Result<Option<(Visibility, String, String)>, ()> {
                 let vis = parser.parse_visibility();
 
                 let param = parser.parse_param()?;
@@ -516,7 +527,7 @@ impl Parser {
             let mut methods = vec![];
             while self.check_kw(Keyword::Fn) {
                 let header = self.parse_function_header()?;
-                
+
                 if !self.eat(TokenType::Semi) {
                     return Err(());
                 }
@@ -581,7 +592,7 @@ impl Parser {
         }
     }
 
-    fn parse_glob(&mut self) -> Result<Option<ItemKind>, ()> {
+    fn parse_glob(&mut self) -> Result<ItemKind, ()> {
         let visibility = self.parse_visibility()/*.unwrap_or(Visibility::Private)*/;
 
         match self.curr {
@@ -594,23 +605,23 @@ impl Parser {
                         // FIXME: error
                         Err(())
                     }
-                    Keyword::Static => self.parse_static(visibility).map(|item| Some(item)),
+                    Keyword::Static => self.parse_static(visibility),
                     Keyword::Const => {
                         // FIXME: distinguish between const func and const value!
                         Err(())
                     }
                     Keyword::Rt => Err(()), // FIXME: ?
-                    Keyword::Fn => self.parse_function(visibility).map(|item| Some(item)),
+                    Keyword::Fn => self.parse_function(visibility),
                     Keyword::Enum => Err(()),
-                    Keyword::Struct => self.parse_struct_def(visibility).map(|item| Some(item)),
+                    Keyword::Struct => self.parse_struct_def(visibility),
                     Keyword::Mod => Err(()),
-                    Keyword::Impl => self.parse_impl_block().map(|item| Some(item)),
+                    Keyword::Impl => self.parse_impl_block(),
                     Keyword::Async => Err(()),
                     Keyword::Unsafe => Err(()),
                     Keyword::Extern => Err(()),
-                    Keyword::Trait => self.parse_trait_def(visibility).map(|item| Some(item)),
+                    Keyword::Trait => self.parse_trait_def(visibility),
                     Keyword::Type => Err(()),
-                    _ => Ok(None), // FIXME: error
+                    _ => Err(()), // FIXME: error
                 };
             }
             Token::StrLit(_, _) => {
@@ -623,13 +634,13 @@ impl Parser {
             Token::Colon(_) => {
                 // FIXME: MAYBE try to recover
             }
-            Token::Comment(_, _) => {}
+            Token::Comment(_, _) => {} // FIXME: this is currently filtered in the tokenstream
             _ => {}
         }
-        Ok(None)
+        Err(())
     }
 
-    fn parse_primary(&mut self) -> Result<Option<AstNode>, ()> {
+    fn parse_primary(&mut self) -> Result<AstNode, ()> {
         println!("curr: {:?}", self.curr);
         match &self.curr {
             Token::Ident(_, content) => {
@@ -637,21 +648,26 @@ impl Parser {
                     .token_stream
                     .look_ahead(1, |token| token.to_type() == TokenType::OpenParen)
                 {
-                    Ok(self.parse_call()) // FIXME: handle errors properly!
-                                          /*} else if self.token_stream.look_ahead(1, |token| token.to_type() == TokenType::Dot) {
-                                          // FIXME: parse field access/struct method call
-                                           */
+                    self.parse_call() // FIXME: handle errors properly!
+                                      /*} else if self.token_stream.look_ahead(1, |token| token.to_type() == TokenType::Dot) {
+                                      // FIXME: parse field access/struct method call
+                                       */
+                } else if self
+                    .token_stream
+                    .look_ahead(1, |token| token.to_type() == TokenType::OpenCurly)
+                {
+                    self.parse_struct_constructor()
                 } else {
                     // FIXME: handle the rest!
                     let content = content.clone();
                     self.advance();
-                    Ok(Some(AstNode::Ident(content)))
+                    Ok(AstNode::Ident(content))
                 }
             }
             //#!Token::Keyword(_, _) => {}
             // Token::StrLit(_, _) => {}
-            Token::NumLit(_, _) => Ok(self.parse_number_expr()),
-            Token::OpenParen(_) => Ok(self.parse_paren_expr()),
+            Token::NumLit(_, _) => self.parse_number_expr(),
+            Token::OpenParen(_) => self.parse_paren_expr(),
             //#!Token::OpenCurly(_) => {}
             // Token::OpenBracket(_) => {}
             // Token::Eq(_) => {}
@@ -662,23 +678,23 @@ impl Parser {
             // Token::Star(_) => {}
             // Token::Question(_) => {}
             // Token::Underscore(_) => {}
-            Token::Comment(_, _) => Ok(None),
+            // Token::Comment(_, _) => Ok(None), // FIXME: this is currently filtered in the tokenstream
             Token::EOF(_) => Err(()),
             _ => Err(()),
         }
     }
 
     /// parses an expression for example in the body of a method
-    fn parse_expr(&mut self) -> Result<Option<AstNode>, ()> {
+    fn parse_expr(&mut self) -> Result<AstNode, ()> {
         if self.check(TokenType::OpenCurly) {
             return self
                 .parse_block_no_attr()
-                .map(|block| Some(AstNode::Block(block)));
+                .map(|block| AstNode::Block(block));
         }
         self.parse_bin_op()
     }
 
-    fn parse_item(&mut self) -> Result<Option<ItemKind>, ()> {
+    fn parse_item(&mut self) -> Result<ItemKind, ()> {
         match self.curr {
             Token::Keyword(_, _) => self.parse_glob(),
             // Token::StrLit(_, _) => {}
@@ -692,7 +708,7 @@ impl Parser {
             // Token::Star(_) => {}
             // Token::Question(_) => {}
             // Token::Underscore(_) => {}
-            Token::Comment(_, _) => Ok(None),
+            // Token::Comment(_, _) => Ok(None), // FIXME: this is currently filtered in the tokenstream
             Token::EOF(_) => Err(()),
             _ => Err(()),
         }
@@ -737,14 +753,19 @@ impl Parser {
         }
         self.token_stream.advance();
     }
+
+    // FIXME: this is currently filtered in the tokenstream
+    fn skip_comments(&mut self) {
+        while self.curr.to_type() == TokenType::Comment {
+            self.advance();
+        }
+    }
 }
-
-
 
 const EOF_TOKEN: Token = Token::EOF(FixedTokenSpan::new(usize::MAX));
 
 #[cfg(test)]
-fn test_file(path: String, assumed: Box<dyn Fn(Vec<Token>, Crate) -> bool>) -> bool {
+fn test_file(path: &str, assumed: Box<dyn Fn(Vec<Token>, Crate) -> bool>) -> bool {
     let file = fs::read_to_string(path).unwrap();
     let lexed = lexer::lex(file).unwrap();
     let lexed_cloned = lexed.clone();
@@ -757,7 +778,7 @@ fn test_file(path: String, assumed: Box<dyn Fn(Vec<Token>, Crate) -> bool>) -> b
 #[test]
 fn test_func() {
     assert!(test_file(
-        String::from("tests/func.tf"),
+        "tests/func.tf",
         Box::new(|tokens, krate| tokens.len() == 33 && krate.items.len() == 2)
     ));
 }
@@ -765,7 +786,7 @@ fn test_func() {
 #[test]
 fn test_static() {
     assert!(test_file(
-        String::from("tests/static.tf"),
+        "tests/static.tf",
         Box::new(|tokens, krate| tokens.len() == 24 && krate.items.len() == 2)
     ));
 }
@@ -773,7 +794,7 @@ fn test_static() {
 #[test]
 fn test_struct() {
     assert!(test_file(
-        String::from("tests/struct.tf"),
+        "tests/struct.tf",
         Box::new(|tokens, krate| tokens.len() == 19 && krate.items.len() == 2)
     ));
 }
@@ -781,7 +802,7 @@ fn test_struct() {
 #[test]
 fn test_trait() {
     assert!(test_file(
-        String::from("tests/trait.tf"),
+        "tests/trait.tf",
         Box::new(|tokens, krate| tokens.len() == 29 && krate.items.len() == 2)
     ));
 }
@@ -789,7 +810,15 @@ fn test_trait() {
 #[test]
 fn test_impl() {
     assert!(test_file(
-        String::from("tests/impl.tf"),
+        "tests/impl.tf",
         Box::new(|tokens, krate| tokens.len() == 33 && krate.items.len() == 4)
+    ));
+}
+
+#[test]
+fn test_struct_constructor() {
+    assert!(test_file(
+        "tests/struct_constructor.tf",
+        Box::new(|tokens, krate| tokens.len() == 32 && krate.items.len() == 2)
     ));
 }

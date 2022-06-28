@@ -8,9 +8,16 @@ pub struct TokenStream {
 }
 
 impl TokenStream {
-    pub fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(mut tokens: Vec<Token>) -> Self {
+        // just filter all comments our for now
+        let mut filtered_tokens = vec![];
+        for token in tokens {
+            if token.to_type() != TokenType::Comment {
+                filtered_tokens.push(token);
+            }
+        }
         Self {
-            tokens: tokens.into_boxed_slice(),
+            tokens: filtered_tokens.into_boxed_slice(),
             cursor: 0,
         }
     }
