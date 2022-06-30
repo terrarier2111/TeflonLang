@@ -4,9 +4,10 @@ use crate::lexer;
 use crate::lexer::token::{BinOp, Token, TokenType};
 use crate::parser::ast::{
     AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
-    FunctionHeader, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign,
-    NumberType, StaticValNode, Stmt, StmtKind, StructConstructor, StructDef, StructFieldDef,
-    StructImpl, TraitDef, Ty, TyOrConstVal,
+    FunctionHeader, FunctionModifiers, FunctionNode, Generic, GenericConstant, GenericLifetime,
+    GenericType, ItemKind, LAssign, LDecAssign, Lifetime, LocalAssign, NumberType, StaticValNode,
+    Stmt, StmtKind, StructConstructor, StructDef, StructFieldDef, StructImpl, TraitDef, Ty,
+    TyOrConstVal,
 };
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
@@ -303,6 +304,80 @@ impl Parser {
         }
     }
 
+    fn parse_lt(&mut self) -> Result<Lifetime, ()> {
+        if !self.eat(TokenType::Apostrophe) {
+            return Err(());
+        }
+        if let Some((_, name)) = self.parse_ident() {
+            Ok(match name.as_str() {
+                "static" => Lifetime::Static,
+                "_" => Lifetime::Inferred,
+                _ => Lifetime::Custom(name), // FIXME: disallow lifetimes starting with '_'
+            })
+        } else {
+            Err(())
+        }
+    }
+
+    fn parse_maybe_generics_definition(&mut self) -> Result<Box<[Generic]>, ()> {
+        if !self.eat(TokenType::OpenAngle) {
+            return Ok(Box::new([]));
+        }
+
+        let mut generics = vec![];
+        while !self.check(TokenType::ClosedAngle) {
+            if self.eat_kw(Keyword::Const) {
+                if let Some((_, name)) = self.parse_ident() {
+                    if !self.eat(TokenType::Colon) {
+                        return Err(());
+                    }
+                    let ty = self.parse_ty()?;
+                    generics.push(Generic::Constant(GenericConstant { name, ty }));
+                }
+                return Err(());
+            } else if let Some((_, name)) = self.parse_ident() {
+                let traits = if self.eat(TokenType::Colon) {
+                    let mut traits = vec![];
+                    traits.push(self.parse_ty()?);
+
+                    while self.eat_bin_op(BinOp::Add) {
+                        let ty = self.parse_ty()?;
+                        traits.push(ty);
+                    }
+
+                    traits.into_boxed_slice()
+                } else {
+                    Box::new([])
+                };
+
+                generics.push(Generic::Type(GenericType {
+                    name,
+                    required_traits: traits,
+                }));
+            } else {
+                let lt = self.parse_lt()?;
+                generics.push(Generic::Lifetime(GenericLifetime {
+                    lt, // FIXME: support constraints!
+                }));
+            }
+
+            if !self.eat(TokenType::Comma) {
+                break;
+            }
+        }
+
+        if !self.eat(TokenType::ClosedAngle) {
+            return Err(());
+        }
+
+        if generics.is_empty() {
+            // FIXME: is this check at the right spot?
+            return Err(());
+        }
+
+        Ok(generics.into_boxed_slice())
+    }
+
     fn parse_maybe_const_generic_vals_and_tys(&mut self) -> Result<Box<[TyOrConstVal]>, ()> {
         if !self.eat(TokenType::OpenAngle) {
             return Ok(Box::new([]));
@@ -516,6 +591,8 @@ impl Parser {
         // skip the `struct` keyword
         self.advance();
         if let Some((_, name)) = self.parse_ident() {
+            let generics = self.parse_maybe_generics_definition()?;
+
             if !self.eat(TokenType::OpenCurly) {
                 return Err(());
             }
@@ -556,7 +633,7 @@ impl Parser {
             Ok(ItemKind::StructDef(StructDef {
                 visibility: visibility.unwrap_or(Visibility::Private),
                 name,
-                generics: Box::new([]), // FIXME: parse generics
+                generics,
                 fields,
             }))
         } else {
@@ -568,6 +645,8 @@ impl Parser {
         // skip the `trait` keyword
         self.advance();
         if let Some((_, name)) = self.parse_ident() {
+            let generics = self.parse_maybe_generics_definition()?;
+
             if !self.eat(TokenType::OpenCurly) {
                 return Err(());
             }
@@ -589,7 +668,7 @@ impl Parser {
             Ok(ItemKind::TraitDef(TraitDef {
                 visibility: visibility.unwrap_or(Visibility::Private),
                 name,
-                generics: Box::new([]), // FIXME: parse generics
+                generics,
                 methods,
             }))
         } else {
@@ -794,6 +873,16 @@ impl Parser {
         false
     }
 
+    fn eat_bin_op(&mut self, bin_op: BinOp) -> bool {
+        if let Token::BinOp(_, curr_bin_op) = self.curr {
+            if bin_op == curr_bin_op {
+                self.advance();
+                return true;
+            }
+        }
+        false
+    }
+
     fn advance(&mut self) {
         if let Some(next) = self.token_stream.get_next() {
             self.curr = next.clone();
@@ -876,6 +965,6 @@ fn test_struct_constructor() {
 fn test_generics() {
     assert!(test_file(
         "tests/generics.tf",
-        Box::new(|tokens, krate| tokens.len() == 19 && krate.items.len() == 1)
+        Box::new(|tokens, krate| tokens.len() == 54 && krate.items.len() == 4)
     ));
 }

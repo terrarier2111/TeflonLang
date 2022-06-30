@@ -64,7 +64,6 @@ pub enum Token {
     Star(FixedTokenSpan),          // *
     Dot(FixedTokenSpan),           // .
     Question(FixedTokenSpan),      // ?
-    Underscore(FixedTokenSpan),    // _
     Arrow(FixedTokenSpan<2>),      // ->
     Comment(Span, String),
     EOF(FixedTokenSpan), // end of file
@@ -96,7 +95,6 @@ impl Token {
             Token::Star(sp) => Span::single_token(sp.0),
             Token::Dot(sp) => Span::single_token(sp.0),
             Token::Question(sp) => Span::single_token(sp.0),
-            Token::Underscore(sp) => Span::single_token(sp.0),
             Token::Arrow(sp) => Span::fixed_token::<2>(sp.0),
             Token::Comment(sp, _) => *sp,
             Token::EOF(sp) => Span::single_token(sp.0),
@@ -126,7 +124,6 @@ impl Token {
             Token::Star(_) => TokenType::Star,
             Token::Dot(_) => TokenType::Dot,
             Token::Question(_) => TokenType::Question,
-            Token::Underscore(_) => TokenType::Underscore,
             Token::Comment(_, _) => TokenType::Comment,
             Token::Arrow(_) => TokenType::Arrow,
             Token::Invalid(_, _) => TokenType::Invalid,
@@ -135,7 +132,7 @@ impl Token {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BinOp {
     Add,
     Sub,

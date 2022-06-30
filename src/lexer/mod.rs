@@ -73,7 +73,6 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
             '#' => curr_token = Some(Token::Hashtag(FixedTokenSpan::new(cursor))),
             '\'' => curr_token = Some(Token::Apostrophe(FixedTokenSpan::new(cursor))),
             '?' => curr_token = Some(Token::Question(FixedTokenSpan::new(cursor))),
-            '_' => curr_token = Some(Token::Underscore(FixedTokenSpan::new(cursor))),
             '.' => curr_token = Some(Token::Dot(FixedTokenSpan::new(cursor))),
             '=' => curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Eq)),
             '/' => match input[cursor + 1] {

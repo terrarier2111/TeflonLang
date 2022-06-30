@@ -193,13 +193,20 @@ pub enum Generic {
 #[derive(Debug, Clone)]
 pub struct GenericType {
     pub(crate) name: String,
-    pub(crate) required_traits: Vec<Ty>,
+    pub(crate) required_traits: Box<[Ty]>,
 }
 
 #[derive(Debug, Clone)]
 pub struct GenericLifetime {
-    pub(crate) name: String,
-    // pub(crate) constraints: Vec<GenericLifetime>, // FIXME: implement this!
+    pub(crate) lt: Lifetime,
+    // pub(crate) constraints: Box<[Lifetime]>, // FIXME: implement this!
+}
+
+#[derive(Debug, Clone)]
+pub enum Lifetime {
+    Custom(String),
+    Static,
+    Inferred,
 }
 
 #[derive(Debug, Clone)]
