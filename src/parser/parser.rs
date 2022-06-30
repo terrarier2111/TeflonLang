@@ -6,7 +6,7 @@ use crate::parser::ast::{
     AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
     FunctionHeader, FunctionModifiers, FunctionNode, ItemKind, LAssign, LDecAssign, LocalAssign,
     NumberType, StaticValNode, Stmt, StmtKind, StructConstructor, StructDef, StructFieldDef,
-    StructImpl, TraitDef,
+    StructImpl, TraitDef, Ty, TyOrConstVal,
 };
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
@@ -117,7 +117,7 @@ impl Parser {
         let name = self.parse_ident();
         if let Some((_, name)) = name {
             let ty = if self.eat(TokenType::Colon) {
-                self.parse_ident().map(|x| x.1)
+                Some(self.parse_ty()?)
             } else {
                 None
             };
@@ -165,13 +165,17 @@ impl Parser {
             }
 
             let ret = if self.eat(TokenType::Arrow) {
-                let val = self.parse_ident();
-                val.map(|x| x.1)
+                let val = self.parse_ty()?;
+                Some(val)
             } else {
                 None
             };
 
-            Ok(FunctionHeader { name, args, ret })
+            Ok(FunctionHeader {
+                name,
+                args: args.into_boxed_slice(),
+                ret,
+            })
         } else {
             Err(()) // FIXME: return error!
         }
@@ -191,22 +195,14 @@ impl Parser {
         })))
     }
 
-    fn parse_param(&mut self) -> Result<Option<(String, String)>, ()> {
-        if let Token::Ident(_, name) = &self.curr {
-            let name = name.clone();
-            self.advance();
-
+    fn parse_param(&mut self) -> Result<Option<(String, Ty)>, ()> {
+        if let Some((_, name)) = self.parse_ident() {
             if !self.eat(TokenType::Colon) {
                 return Err(());
             }
 
-            if let Token::Ident(_, ty) = &self.curr {
-                let ret = Some((name, ty.clone()));
-                self.advance();
-                Ok(ret)
-            } else {
-                Ok(None)
-            }
+            let ty = self.parse_ty()?;
+            Ok(Some((name, ty)))
         } else {
             Ok(None)
         }
@@ -307,6 +303,71 @@ impl Parser {
         }
     }
 
+    fn parse_maybe_const_generic_vals_and_tys(&mut self) -> Result<Box<[TyOrConstVal]>, ()> {
+        if !self.eat(TokenType::OpenAngle) {
+            return Ok(Box::new([]));
+        }
+
+        self.parse_const_generic_vals_and_tys()
+    }
+
+    fn parse_const_generic_vals_and_tys(&mut self) -> Result<Box<[TyOrConstVal]>, ()> {
+        // `<` was already skipped
+        let mut generics = vec![];
+
+        while !self.check(TokenType::ClosedAngle) {
+            let ty_or_expr = self.parse_ty_or_expr(&[TokenType::Comma, TokenType::ClosedAngle])?;
+
+            match ty_or_expr {
+                (Some(ty), _) => {
+                    // FIXME: try to find a better way do that we don't have to convert the ty
+                    // FIXME: opportunistically later if we find out it is infact a const generic val and not a ty
+                    generics.push(TyOrConstVal::Ty(ty));
+                }
+                (_, Some(expr)) => {
+                    generics.push(TyOrConstVal::ConstVal(expr));
+                }
+                _ => unreachable!(),
+            }
+            if !self.eat(TokenType::Comma) {
+                break;
+            }
+        }
+
+        if !self.eat(TokenType::ClosedAngle) {
+            return Err(());
+        }
+
+        Ok(generics.into_boxed_slice())
+    }
+
+    fn parse_ty_or_expr(
+        &mut self,
+        next_expected: &[TokenType],
+    ) -> Result<(Option<Ty>, Option<AstNode>), ()> {
+        if self.check(TokenType::Ident)
+            && self.token_stream.look_ahead(1, |token| {
+                next_expected.iter().any(|ty| ty == &token.to_type())
+                    || token.to_type() == TokenType::OpenAngle
+            })
+        {
+            // ty
+            self.parse_ty().map(|ty| (Some(ty), None))
+        } else {
+            // expr
+            self.parse_expr().map(|node| (None, Some(node)))
+        }
+    }
+
+    fn parse_ty(&mut self) -> Result<Ty, ()> {
+        if let Some((_, name)) = self.parse_ident() {
+            let generics = self.parse_maybe_const_generic_vals_and_tys()?;
+
+            return Ok(Ty { name, generics });
+        }
+        Err(())
+    }
+
     fn parse_stmt_or_expr(&mut self) -> Result<StmtKind, ()> {
         // handle `let x = y;`
         if self.eat_kw(Keyword::Let) {
@@ -370,14 +431,7 @@ impl Parser {
             let name = name.clone();
             self.advance();
             let ty = if self.eat(TokenType::Colon) {
-                if let Token::Ident(_, ty) = &self.curr {
-                    let ty = ty.clone();
-                    self.advance();
-                    Ok(ty)
-                } else {
-                    // FIXME: error!
-                    Err(())
-                }
+                self.parse_ty()
             } else {
                 // FIXME: error!
                 Err(())
@@ -407,14 +461,7 @@ impl Parser {
             let name = name.clone();
             self.advance();
             let ty = if self.eat(TokenType::Colon) {
-                if let Token::Ident(_, ty) = &self.curr {
-                    let ty = ty.clone();
-                    self.advance();
-                    Ok(ty)
-                } else {
-                    // FIXME: error!
-                    Err(())
-                }
+                self.parse_ty()
             } else {
                 // FIXME: error!
                 Err(())
@@ -475,7 +522,7 @@ impl Parser {
 
             fn parse_param_with_vis(
                 parser: &mut Parser,
-            ) -> Result<Option<(Visibility, String, String)>, ()> {
+            ) -> Result<Option<(Visibility, String, Ty)>, ()> {
                 let vis = parser.parse_visibility();
 
                 let param = parser.parse_param()?;
@@ -509,6 +556,7 @@ impl Parser {
             Ok(ItemKind::StructDef(StructDef {
                 visibility: visibility.unwrap_or(Visibility::Private),
                 name,
+                generics: Box::new([]), // FIXME: parse generics
                 fields,
             }))
         } else {
@@ -541,6 +589,7 @@ impl Parser {
             Ok(ItemKind::TraitDef(TraitDef {
                 visibility: visibility.unwrap_or(Visibility::Private),
                 name,
+                generics: Box::new([]), // FIXME: parse generics
                 methods,
             }))
         } else {
@@ -820,5 +869,13 @@ fn test_struct_constructor() {
     assert!(test_file(
         "tests/struct_constructor.tf",
         Box::new(|tokens, krate| tokens.len() == 32 && krate.items.len() == 2)
+    ));
+}
+
+#[test]
+fn test_generics() {
+    assert!(test_file(
+        "tests/generics.tf",
+        Box::new(|tokens, krate| tokens.len() == 19 && krate.items.len() == 1)
     ));
 }

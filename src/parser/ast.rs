@@ -71,7 +71,7 @@ pub struct CallExprNode {
 
 #[derive(Debug, Clone)]
 pub struct StaticValNode {
-    pub(crate) ty: String,
+    pub(crate) ty: Ty,
     // name is contained within val as its lhs field
     pub(crate) val: AstNode,
     pub(crate) visibility: Option<Visibility>,
@@ -90,7 +90,7 @@ impl StaticValNode {
 
 #[derive(Debug, Clone)]
 pub struct ConstValNode {
-    pub(crate) ty: String,
+    pub(crate) ty: Ty,
     // name is contained within val as its lhs field
     pub(crate) val: AstNode,
     pub(crate) visibility: Option<Visibility>,
@@ -124,8 +124,8 @@ pub struct FunctionNode {
 #[derive(Debug, Clone)]
 pub struct FunctionHeader {
     pub(crate) name: String,
-    pub(crate) args: Vec<(String, String)>, // type, name
-    pub(crate) ret: Option<String>,         // type
+    pub(crate) args: Box<[(String, Ty)]>, // name, type
+    pub(crate) ret: Option<Ty>,           // type
 }
 
 #[derive(Debug, Clone)]
@@ -143,7 +143,7 @@ pub struct LAssign {
 #[derive(Debug, Clone)]
 pub struct LDecAssign {
     // LocalDeclareAssignment
-    pub(crate) ty: Option<String>,
+    pub(crate) ty: Option<Ty>,
     pub(crate) val: LAssign,
 }
 
@@ -151,6 +151,7 @@ pub struct LDecAssign {
 pub struct StructDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
+    pub(crate) generics: Box<[Generic]>,
     pub(crate) fields: Vec<StructFieldDef>,
 }
 
@@ -158,13 +159,14 @@ pub struct StructDef {
 pub struct StructFieldDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
-    pub(crate) ty: String,
+    pub(crate) ty: Ty,
 }
 
 #[derive(Debug, Clone)]
 pub struct TraitDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
+    pub(crate) generics: Box<[Generic]>,
     pub(crate) methods: Vec<FunctionHeader>,
 }
 
@@ -179,6 +181,43 @@ pub struct StructImpl {
 pub struct StructConstructor {
     pub(crate) name: String,
     pub(crate) fields: Vec<(String, AstNode)>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Generic {
+    Constant(GenericConstant),
+    Type(GenericType),
+    Lifetime(GenericLifetime),
+}
+
+#[derive(Debug, Clone)]
+pub struct GenericType {
+    pub(crate) name: String,
+    pub(crate) required_traits: Vec<Ty>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GenericLifetime {
+    pub(crate) name: String,
+    // pub(crate) constraints: Vec<GenericLifetime>, // FIXME: implement this!
+}
+
+#[derive(Debug, Clone)]
+pub struct GenericConstant {
+    pub(crate) name: String,
+    pub(crate) ty: Ty,
+}
+
+#[derive(Debug, Clone)]
+pub struct Ty {
+    pub(crate) name: String,
+    pub(crate) generics: Box<[TyOrConstVal]>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TyOrConstVal {
+    Ty(Ty),
+    ConstVal(AstNode),
 }
 
 #[derive(Debug, Copy, Clone)]
