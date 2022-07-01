@@ -6,7 +6,7 @@ use crate::parser::attrs::{Constness, Mutability, Visibility};
 
 #[derive(Debug, Clone)]
 pub struct Crate {
-    pub(crate) items: Vec<ItemKind>,
+    pub(crate) items: Box<[ItemKind]>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,7 +47,7 @@ pub enum ItemKind {
 #[derive(Debug, Clone)]
 pub struct Block {
     pub(crate) modifiers: BlockModifiers,
-    pub(crate) stmts: Vec<StmtKind /*Stmt*/>, // FIXME: switch to stmts
+    pub(crate) stmts: Box<[StmtKind] /*[Stmt]*/>, // FIXME: switch to stmts
 }
 
 #[derive(Debug, Clone)]
@@ -66,7 +66,7 @@ pub struct BinaryExprNode {
 #[derive(Debug, Clone)]
 pub struct CallExprNode {
     pub(crate) callee: String,
-    pub(crate) args: Vec<AstNode>,
+    pub(crate) args: Box<[AstNode]>,
 }
 
 #[derive(Debug, Clone)]
@@ -152,7 +152,7 @@ pub struct StructDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
     pub(crate) generics: Box<[Generic]>,
-    pub(crate) fields: Vec<StructFieldDef>,
+    pub(crate) fields: Box<[StructFieldDef]>,
 }
 
 #[derive(Debug, Clone)]
@@ -167,20 +167,28 @@ pub struct TraitDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
     pub(crate) generics: Box<[Generic]>,
-    pub(crate) methods: Vec<FunctionHeader>,
+    pub(crate) req_sub_traits: Box<[Ty]>,
+    pub(crate) methods: Box<[FunctionHeader]>,
 }
 
 #[derive(Debug, Clone)]
 pub struct StructImpl {
-    pub(crate) name: String,
-    pub(crate) impl_trait: Option<String>,
-    pub(crate) methods: Vec<ItemKind>,
+    pub(crate) ty: TyOrGeneric,
+    pub(crate) impl_trait: Option<Ty>,
+    pub(crate) generics: Box<[Generic]>,
+    pub(crate) methods: Box<[ItemKind]>,
 }
 
 #[derive(Debug, Clone)]
 pub struct StructConstructor {
     pub(crate) name: String,
-    pub(crate) fields: Vec<(String, AstNode)>,
+    pub(crate) fields: Box<[(String, AstNode)]>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TyOrGeneric {
+    Ty(Ty),
+    Generic(String),
 }
 
 #[derive(Debug, Clone)]

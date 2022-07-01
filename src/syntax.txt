@@ -43,5 +43,8 @@ Yeah, boxes need
  - a way to do partial moves
  - a way to do shallow initialization
  - a way to call a boxed dyn FnOnce
-- a way to do in-place construction
+ - a way to do in-place construction
 
+
+// FIXME: (maybe) function overloading
+// FIXME: specialization, negative impls represented as !Trait and not ?Trait

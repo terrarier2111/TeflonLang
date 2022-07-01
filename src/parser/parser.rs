@@ -7,7 +7,7 @@ use crate::parser::ast::{
     FunctionHeader, FunctionModifiers, FunctionNode, Generic, GenericConstant, GenericLifetime,
     GenericType, ItemKind, LAssign, LDecAssign, Lifetime, LocalAssign, NumberType, StaticValNode,
     Stmt, StmtKind, StructConstructor, StructDef, StructFieldDef, StructImpl, TraitDef, Ty,
-    TyOrConstVal,
+    TyOrConstVal, TyOrGeneric,
 };
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
@@ -54,7 +54,9 @@ impl Parser {
                 }
             }
         }
-        Ok(Crate { items })
+        Ok(Crate {
+            items: items.into_boxed_slice(),
+        })
     }
 
     /*
@@ -226,7 +228,10 @@ impl Parser {
             if self.eat(TokenType::OpenParen) {
                 let args = self.parse_comma_separated();
                 if self.eat(TokenType::ClosedParen) {
-                    return Ok(AstNode::CallExpr(CallExprNode { callee: name, args }));
+                    return Ok(AstNode::CallExpr(CallExprNode {
+                        callee: name,
+                        args: args.into_boxed_slice(),
+                    }));
                 }
             }
         }
@@ -333,8 +338,9 @@ impl Parser {
                     }
                     let ty = self.parse_ty()?;
                     generics.push(Generic::Constant(GenericConstant { name, ty }));
+                } else {
+                    return Err(());
                 }
-                return Err(());
             } else if let Some((_, name)) = self.parse_ident() {
                 let traits = if self.eat(TokenType::Colon) {
                     let mut traits = vec![];
@@ -482,7 +488,7 @@ impl Parser {
         if self.eat(TokenType::ClosedCurly) {
             Ok(Block {
                 modifiers: BlockModifiers {},
-                stmts,
+                stmts: stmts.into_boxed_slice(),
             })
         } else {
             Err(())
@@ -580,7 +586,7 @@ impl Parser {
             }
             return Ok(AstNode::StructConstructor(StructConstructor {
                 name,
-                fields,
+                fields: fields.into_boxed_slice(),
             }));
         } else {
             Err(())
@@ -634,7 +640,7 @@ impl Parser {
                 visibility: visibility.unwrap_or(Visibility::Private),
                 name,
                 generics,
-                fields,
+                fields: fields.into_boxed_slice(),
             }))
         } else {
             Err(())
@@ -646,6 +652,17 @@ impl Parser {
         self.advance();
         if let Some((_, name)) = self.parse_ident() {
             let generics = self.parse_maybe_generics_definition()?;
+            let req_sub_traits = if self.eat(TokenType::Colon) {
+                let mut sub_traits = vec![];
+                sub_traits.push(self.parse_ty()?);
+
+                while self.eat_bin_op(BinOp::Add) {
+                    sub_traits.push(self.parse_ty()?);
+                }
+                sub_traits.into_boxed_slice()
+            } else {
+                Box::new([])
+            };
 
             if !self.eat(TokenType::OpenCurly) {
                 return Err(());
@@ -669,7 +686,8 @@ impl Parser {
                 visibility: visibility.unwrap_or(Visibility::Private),
                 name,
                 generics,
-                methods,
+                req_sub_traits,
+                methods: methods.into_boxed_slice(),
             }))
         } else {
             Err(())
@@ -679,45 +697,64 @@ impl Parser {
     fn parse_impl_block(&mut self) -> Result<ItemKind, ()> {
         // skip the `impl` keyword
         self.advance();
-        if let Some((_, name)) = self.parse_ident() {
-            let (impl_trait, name) = if self.eat_kw(Keyword::For) {
-                if let Some((_, tait)) = self.parse_ident() {
-                    (Some(name), tait)
+
+        let generics = self.parse_maybe_generics_definition()?;
+        let ty = self.parse_ty()?;
+        let (impl_trait, ty) = if self.eat_kw(Keyword::For) {
+            let tait = if let Token::Ident(_, name) = &self.curr {
+                let mut is_generic = false;
+                for generic in generics.iter() {
+                    if let Generic::Type(ty) = generic {
+                        if &ty.name == name {
+                            is_generic = true;
+                            break;
+                        }
+                    }
+                }
+                if is_generic {
+                    let name = name.clone();
+                    // skip the name token
+                    self.advance();
+                    TyOrGeneric::Generic(name)
                 } else {
-                    return Err(());
+                    let ty = self.parse_ty()?;
+                    TyOrGeneric::Ty(ty)
                 }
             } else {
-                (None, name)
+                return Err(());
             };
 
-            if !self.eat(TokenType::OpenCurly) {
-                return Err(());
-            }
-
-            let mut methods = vec![];
-            let mut visibility = self.parse_visibility();
-            while self.check_kw(Keyword::Fn) {
-                let function = self.parse_function(visibility.take())?;
-                methods.push(function);
-                visibility = self.parse_visibility();
-            }
-            // check for invalid trailing visibility modifier
-            if visibility.is_some() {
-                return Err(());
-            }
-
-            if !self.eat(TokenType::ClosedCurly) {
-                return Err(());
-            }
-
-            Ok(ItemKind::StructImpl(StructImpl {
-                name,
-                impl_trait,
-                methods,
-            }))
+            (Some(ty), tait)
         } else {
-            Err(())
+            (None, TyOrGeneric::Ty(ty))
+        };
+
+        if !self.eat(TokenType::OpenCurly) {
+            return Err(());
         }
+
+        let mut methods = vec![];
+        let mut visibility = self.parse_visibility();
+        while self.check_kw(Keyword::Fn) {
+            let function = self.parse_function(visibility.take())?;
+            methods.push(function);
+            visibility = self.parse_visibility();
+        }
+        // check for invalid trailing visibility modifier
+        if visibility.is_some() {
+            return Err(());
+        }
+
+        if !self.eat(TokenType::ClosedCurly) {
+            return Err(());
+        }
+
+        Ok(ItemKind::StructImpl(StructImpl {
+            ty,
+            impl_trait,
+            generics,
+            methods: methods.into_boxed_slice(),
+        }))
     }
 
     fn parse_glob(&mut self) -> Result<ItemKind, ()> {
@@ -965,6 +1002,6 @@ fn test_struct_constructor() {
 fn test_generics() {
     assert!(test_file(
         "tests/generics.tf",
-        Box::new(|tokens, krate| tokens.len() == 54 && krate.items.len() == 4)
+        Box::new(|tokens, krate| tokens.len() == 89 && krate.items.len() == 7)
     ));
 }
