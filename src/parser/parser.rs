@@ -5,9 +5,9 @@ use crate::lexer::token::{BinOp, Token, TokenType};
 use crate::parser::ast::{
     AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
     FunctionHeader, FunctionModifiers, FunctionNode, Generic, GenericConstant, GenericLifetime,
-    GenericType, ItemKind, LAssign, LDecAssign, Lifetime, LocalAssign, NumberType, StaticValNode,
-    Stmt, StmtKind, StructConstructor, StructDef, StructFieldDef, StructImpl, TraitDef, Ty,
-    TyOrConstVal, TyOrGeneric,
+    GenericType, ItemKind, LAssign, LDecAssign, Lifetime, LocalAssign, NumberType, OwnedTy, RefTy,
+    StaticValNode, Stmt, StmtKind, StructConstructor, StructDef, StructFieldDef, StructImpl,
+    TraitDef, Ty, TyKind, TyOrConstVal,
 };
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
@@ -151,6 +151,8 @@ impl Parser {
             println!("ident!");
             let name = name.clone();
             self.advance();
+            let generics = self.parse_maybe_generics_definition()?;
+
             if !self.eat(TokenType::OpenParen) {
                 return Err(());
             }
@@ -176,6 +178,7 @@ impl Parser {
 
             Ok(FunctionHeader {
                 name,
+                generics,
                 args: args.into_boxed_slice(),
                 ret,
             })
@@ -310,15 +313,23 @@ impl Parser {
     }
 
     fn parse_lt(&mut self) -> Result<Lifetime, ()> {
+        if let Ok(Some(lt)) = self.parse_maybe_lt() {
+            Ok(lt)
+        } else {
+            Err(())
+        }
+    }
+
+    fn parse_maybe_lt(&mut self) -> Result<Option<Lifetime>, ()> {
         if !self.eat(TokenType::Apostrophe) {
-            return Err(());
+            return Ok(None);
         }
         if let Some((_, name)) = self.parse_ident() {
-            Ok(match name.as_str() {
+            Ok(Some(match name.as_str() {
                 "static" => Lifetime::Static,
                 "_" => Lifetime::Inferred,
                 _ => Lifetime::Custom(name), // FIXME: disallow lifetimes starting with '_'
-            })
+            }))
         } else {
             Err(())
         }
@@ -441,12 +452,35 @@ impl Parser {
     }
 
     fn parse_ty(&mut self) -> Result<Ty, ()> {
+        if self.eat(TokenType::And) {
+            self.parse_ref_ty().map(|rf| Ty {
+                kind: TyKind::Ref(Box::new(rf)),
+            })
+        } else {
+            self.parse_owned_ty().map(|owned| Ty {
+                kind: TyKind::Owned(Box::new(owned)),
+            })
+        }
+    }
+
+    fn parse_owned_ty(&mut self) -> Result<OwnedTy, ()> {
         if let Some((_, name)) = self.parse_ident() {
             let generics = self.parse_maybe_const_generic_vals_and_tys()?;
 
-            return Ok(Ty { name, generics });
+            return Ok(OwnedTy { name, generics });
         }
         Err(())
+    }
+
+    fn parse_ref_ty(&mut self) -> Result<RefTy, ()> {
+        let lt = self.parse_maybe_lt()?;
+        let mutability = self.parse_mutability().unwrap_or(Mutability::Immut);
+        let ty = self.parse_ty()?;
+        Ok(RefTy {
+            lt,
+            mutability,
+            ty: Box::new(ty),
+        })
     }
 
     fn parse_stmt_or_expr(&mut self) -> Result<StmtKind, ()> {
@@ -702,31 +736,14 @@ impl Parser {
         let ty = self.parse_ty()?;
         let (impl_trait, ty) = if self.eat_kw(Keyword::For) {
             let tait = if let Token::Ident(_, name) = &self.curr {
-                let mut is_generic = false;
-                for generic in generics.iter() {
-                    if let Generic::Type(ty) = generic {
-                        if &ty.name == name {
-                            is_generic = true;
-                            break;
-                        }
-                    }
-                }
-                if is_generic {
-                    let name = name.clone();
-                    // skip the name token
-                    self.advance();
-                    TyOrGeneric::Generic(name)
-                } else {
-                    let ty = self.parse_ty()?;
-                    TyOrGeneric::Ty(ty)
-                }
+                self.parse_ty()?
             } else {
                 return Err(());
             };
 
             (Some(ty), tait)
         } else {
-            (None, TyOrGeneric::Ty(ty))
+            (None, ty)
         };
 
         if !self.eat(TokenType::OpenCurly) {
@@ -939,6 +956,12 @@ impl Parser {
 
 const EOF_TOKEN: Token = Token::EOF(FixedTokenSpan::new(usize::MAX));
 
+#[derive(Copy, Clone, PartialEq)]
+enum GenericsMode {
+    Yes,
+    No, // this means that in the current parse step we don't allow parsing generics, we will allow them in the next one tho
+}
+
 #[cfg(test)]
 fn test_file(path: &str, assumed: Box<dyn Fn(Vec<Token>, Crate) -> bool>) -> bool {
     let file = fs::read_to_string(path).unwrap();
@@ -1002,6 +1025,14 @@ fn test_struct_constructor() {
 fn test_generics() {
     assert!(test_file(
         "tests/generics.tf",
-        Box::new(|tokens, krate| tokens.len() == 89 && krate.items.len() == 7)
+        Box::new(|tokens, krate| tokens.len() == 93 && krate.items.len() == 7)
+    ));
+}
+
+#[test]
+fn test_ref() {
+    assert!(test_file(
+        "tests/ref.tf",
+        Box::new(|tokens, krate| tokens.len() == 74 && krate.items.len() == 5)
     ));
 }

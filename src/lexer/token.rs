@@ -26,6 +26,8 @@ pub enum TokenType {
     Question,      // ?
     Underscore,    // _
     Arrow,         // ->
+    And,           // &
+    Or,            // |
     Comment,
     EOF, // end of file
     Invalid,
@@ -65,6 +67,8 @@ pub enum Token {
     Dot(FixedTokenSpan),           // .
     Question(FixedTokenSpan),      // ?
     Arrow(FixedTokenSpan<2>),      // ->
+    And(FixedTokenSpan),           // &
+    Or(FixedTokenSpan),            // |
     Comment(Span, String),
     EOF(FixedTokenSpan), // end of file
     Invalid(FixedTokenSpan, char),
@@ -96,6 +100,8 @@ impl Token {
             Token::Dot(sp) => Span::single_token(sp.0),
             Token::Question(sp) => Span::single_token(sp.0),
             Token::Arrow(sp) => Span::fixed_token::<2>(sp.0),
+            Token::And(sp) => Span::single_token(sp.0),
+            Token::Or(sp) => Span::single_token(sp.0),
             Token::Comment(sp, _) => *sp,
             Token::EOF(sp) => Span::single_token(sp.0),
         }
@@ -126,6 +132,8 @@ impl Token {
             Token::Question(_) => TokenType::Question,
             Token::Comment(_, _) => TokenType::Comment,
             Token::Arrow(_) => TokenType::Arrow,
+            Token::And(_) => TokenType::And,
+            Token::Or(_) => TokenType::Or,
             Token::Invalid(_, _) => TokenType::Invalid,
             Token::EOF(_) => TokenType::EOF,
         }
@@ -143,6 +151,10 @@ pub enum BinOp {
     SubEq,
     MulEq,
     DivEq,
+    AndEq,
+    OrEq,
+    AndAnd,
+    OrOr,
     Eq,
     // EqEq, // ==
     // NEq,  // !=
@@ -157,10 +169,14 @@ impl BinOp {
             BinOp::Mul => 10,
             BinOp::Div => 10,
             BinOp::Mod => 10,
+            BinOp::AndAnd => 2,
+            BinOp::OrOr => 2,
             BinOp::AddEq => 1,
             BinOp::SubEq => 1,
             BinOp::MulEq => 1,
             BinOp::DivEq => 1,
+            BinOp::AndEq => 1,
+            BinOp::OrEq => 1,
             BinOp::Eq => 1,
             // BinOp::EqEq => 2,
             // BinOp::NEq => 2,

@@ -75,6 +75,38 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
             '?' => curr_token = Some(Token::Question(FixedTokenSpan::new(cursor))),
             '.' => curr_token = Some(Token::Dot(FixedTokenSpan::new(cursor))),
             '=' => curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Eq)),
+            '&' => match input[cursor + 1] {
+                '&' => {
+                    curr_token = Some(Token::BinOp(
+                        Span::multi_token(cursor, cursor + 1),
+                        BinOp::AndAnd,
+                    ));
+                }
+                '=' => {
+                    curr_token = Some(Token::BinOp(
+                        Span::multi_token(cursor, cursor + 1),
+                        BinOp::AndEq,
+                    ))
+                }
+                _ => curr_token = Some(Token::And(FixedTokenSpan::new(cursor))),
+            },
+            '|' => match input[cursor + 1] {
+                '|' => {
+                    curr_token = Some(Token::BinOp(
+                        Span::multi_token(cursor, cursor + 1),
+                        BinOp::OrOr,
+                    ));
+                    cursor += 1;
+                }
+                '=' => {
+                    curr_token = Some(Token::BinOp(
+                        Span::multi_token(cursor, cursor + 1),
+                        BinOp::OrEq,
+                    ));
+                    cursor += 1;
+                }
+                _ => curr_token = Some(Token::Or(FixedTokenSpan::new(cursor))),
+            },
             '/' => match input[cursor + 1] {
                 '/' => {
                     let span_start = cursor;
@@ -94,7 +126,8 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
                     curr_token = Some(Token::BinOp(
                         Span::multi_token(cursor, cursor + 1),
                         BinOp::DivEq,
-                    ))
+                    ));
+                    cursor += 1;
                 }
                 _ => curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Div)),
             },
@@ -104,6 +137,7 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
                         Span::multi_token(cursor, cursor + 1),
                         BinOp::AddEq,
                     ));
+                    cursor += 1;
                 } else {
                     curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Add));
                 }
@@ -130,6 +164,7 @@ pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
                         Span::multi_token(cursor, cursor + 1),
                         BinOp::MulEq,
                     ));
+                    cursor += 1;
                 } else {
                     curr_token = Some(Token::BinOp(Span::single_token(cursor), BinOp::Mul));
                 }

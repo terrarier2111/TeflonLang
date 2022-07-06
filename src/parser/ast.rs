@@ -124,6 +124,7 @@ pub struct FunctionNode {
 #[derive(Debug, Clone)]
 pub struct FunctionHeader {
     pub(crate) name: String,
+    pub(crate) generics: Box<[Generic]>,
     pub(crate) args: Box<[(String, Ty)]>, // name, type
     pub(crate) ret: Option<Ty>,           // type
 }
@@ -167,14 +168,14 @@ pub struct TraitDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
     pub(crate) generics: Box<[Generic]>,
-    pub(crate) req_sub_traits: Box<[Ty]>,
+    pub(crate) req_sub_traits: Box<[Ty]>, // this may not be generic
     pub(crate) methods: Box<[FunctionHeader]>,
 }
 
 #[derive(Debug, Clone)]
 pub struct StructImpl {
-    pub(crate) ty: TyOrGeneric,
-    pub(crate) impl_trait: Option<Ty>,
+    pub(crate) ty: Ty,
+    pub(crate) impl_trait: Option<Ty>, // this may not be generic
     pub(crate) generics: Box<[Generic]>,
     pub(crate) methods: Box<[ItemKind]>,
 }
@@ -183,12 +184,6 @@ pub struct StructImpl {
 pub struct StructConstructor {
     pub(crate) name: String,
     pub(crate) fields: Box<[(String, AstNode)]>,
-}
-
-#[derive(Debug, Clone)]
-pub enum TyOrGeneric {
-    Ty(Ty),
-    Generic(String),
 }
 
 #[derive(Debug, Clone)]
@@ -225,6 +220,28 @@ pub struct GenericConstant {
 
 #[derive(Debug, Clone)]
 pub struct Ty {
+    pub(crate) kind: TyKind,
+    // FIXME: add span
+}
+
+// FIXME: introduce and use TyKind in the future (use smth similar for generics)
+#[derive(Debug, Clone)]
+pub enum TyKind {
+    Ref(Box<RefTy>),
+    // Array, // TODO
+    // Ptr, // TODO
+    Owned(Box<OwnedTy>),
+}
+
+#[derive(Debug, Clone)]
+pub struct RefTy {
+    pub(crate) lt: Option<Lifetime>,
+    pub(crate) mutability: Mutability,
+    pub(crate) ty: Box<Ty>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OwnedTy {
     pub(crate) name: String,
     pub(crate) generics: Box<[TyOrConstVal]>,
 }

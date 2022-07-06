@@ -4,6 +4,7 @@ fn get_economy(tmp: Civilization<Continent>) -> Economy<Resource> {
 
 struct Civilization<Continent: Send + Sync> {
    population: usize,
+   continent: Continent,
 }
 
 trait CivBase {
