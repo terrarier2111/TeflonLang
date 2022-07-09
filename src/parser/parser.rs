@@ -3,11 +3,11 @@ use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::lexer;
 use crate::lexer::token::{BinOp, Token, TokenType};
 use crate::parser::ast::{
-    AstNode, BinaryExprNode, Block, BlockModifiers, CallExprNode, ConstValNode, Crate,
-    FunctionHeader, FunctionModifiers, FunctionNode, Generic, GenericConstant, GenericLifetime,
-    GenericType, ItemKind, LAssign, LDecAssign, Lifetime, LocalAssign, NumberType, OwnedTy, RefTy,
-    StaticValNode, Stmt, StmtKind, StructConstructor, StructDef, StructFieldDef, StructImpl,
-    TraitDef, Ty, TyKind, TyOrConstVal,
+    ArrayInst, ArrayInstList, ArrayInstShort, ArrayTy, AstNode, BinaryExprNode, Block,
+    BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionHeader, FunctionModifiers,
+    FunctionNode, Generic, GenericConstant, GenericLifetime, GenericType, ItemKind, LAssign,
+    LDecAssign, Lifetime, LocalAssign, NumberType, OwnedTy, RefTy, StaticValNode, Stmt, StmtKind,
+    StructConstructor, StructDef, StructFieldDef, StructImpl, TraitDef, Ty, TyKind, TyOrConstVal,
 };
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
@@ -117,6 +117,7 @@ impl Parser {
 
     /// assumes the let keyword was already skipped
     fn parse_let(&mut self) -> Result<StmtKind, ()> {
+        let mutability = self.parse_mutability();
         let name = self.parse_ident();
         if let Some((_, name)) = name {
             let ty = if self.eat(TokenType::Colon) {
@@ -133,6 +134,7 @@ impl Parser {
                 }
 
                 return Ok(StmtKind::LocalAssign(LocalAssign::DecAssign(LDecAssign {
+                    mutability,
                     ty,
                     val: LAssign { name, val },
                 })));
@@ -147,10 +149,8 @@ impl Parser {
     fn parse_function_header(&mut self) -> Result<FunctionHeader, ()> {
         // skip the `fn` keyword
         self.advance();
-        if let Token::Ident(_, name) = &self.curr {
+        if let Some((_, name)) = self.parse_ident() {
             println!("ident!");
-            let name = name.clone();
-            self.advance();
             let generics = self.parse_maybe_generics_definition()?;
 
             if !self.eat(TokenType::OpenParen) {
@@ -226,8 +226,7 @@ impl Parser {
     }
 
     fn parse_call(&mut self) -> Result<AstNode, ()> {
-        if let Token::Ident(_, name) = &self.curr {
-            let name = name.clone();
+        if let Some((_, name)) = self.parse_ident() {
             if self.eat(TokenType::OpenParen) {
                 let args = self.parse_comma_separated();
                 if self.eat(TokenType::ClosedParen) {
@@ -456,6 +455,10 @@ impl Parser {
             self.parse_ref_ty().map(|rf| Ty {
                 kind: TyKind::Ref(Box::new(rf)),
             })
+        } else if self.eat(TokenType::OpenBracket) {
+            self.parse_array_ty().map(|array| Ty {
+                kind: TyKind::Array(Box::new(array)),
+            })
         } else {
             self.parse_owned_ty().map(|owned| Ty {
                 kind: TyKind::Owned(Box::new(owned)),
@@ -481,6 +484,76 @@ impl Parser {
             mutability,
             ty: Box::new(ty),
         })
+    }
+
+    fn parse_array_ty(&mut self) -> Result<ArrayTy, ()> {
+        let ty = self.parse_ty()?;
+
+        let amount = if self.eat(TokenType::Semi) {
+            Some(self.parse_number_expr()?)
+        } else {
+            None
+        };
+
+        if !self.eat(TokenType::ClosedBracket) {
+            return Err(());
+        }
+
+        Ok(ArrayTy { ty, amount })
+    }
+
+    fn parse_array_constructor(&mut self) -> Result<AstNode, ()> {
+        if !self.eat(TokenType::OpenBracket) {
+            return Err(());
+        }
+        let val = self.parse_bin_op()?;
+
+        let inst = match self.curr.to_type() {
+            TokenType::Comma => {
+                let mut vals = vec![val];
+                // we skip the `,` token
+                self.advance();
+                while !self.check(TokenType::ClosedBracket) {
+                    let val = self.parse_bin_op()?;
+                    vals.push(val);
+
+                    if !self.eat(TokenType::Comma) {
+                        break;
+                    }
+                }
+
+                if !self.eat(TokenType::ClosedBracket) {
+                    return Err(());
+                }
+
+                ArrayInst::List(ArrayInstList {
+                    vals: vals.into_boxed_slice(),
+                })
+            }
+            TokenType::ClosedBracket => {
+                // we skip the `]` token
+                self.advance();
+                ArrayInst::List(ArrayInstList {
+                    vals: Box::new([val]),
+                })
+            }
+            TokenType::Semi => {
+                // we skip the `;` token
+                self.advance();
+                let cnt = self.parse_number_expr()?;
+
+                if !self.eat(TokenType::ClosedBracket) {
+                    return Err(());
+                }
+
+                ArrayInst::Short(Box::new(ArrayInstShort { val, amount: cnt }))
+            }
+            _ => {
+                return Err(());
+            }
+        };
+
+        Ok(AstNode::ArrayInst(inst))
     }
 
     fn parse_stmt_or_expr(&mut self) -> Result<StmtKind, ()> {
@@ -542,9 +615,7 @@ impl Parser {
         self.advance();
         let mutability = self.parse_mutability();
 
-        if let Token::Ident(_, name) = &self.curr {
-            let name = name.clone();
-            self.advance();
+        if let Some((_, name)) = self.parse_ident() {
             let ty = if self.eat(TokenType::Colon) {
                 self.parse_ty()
             } else {
@@ -572,9 +643,7 @@ impl Parser {
         // skip the `const` keyword
         self.advance();
 
-        if let Token::Ident(_, name) = &self.curr {
-            let name = name.clone();
-            self.advance();
+        if let Some((_, name)) = self.parse_ident() {
             let ty = if self.eat(TokenType::Colon) {
                 self.parse_ty()
             } else {
@@ -735,12 +804,7 @@ impl Parser {
         let generics = self.parse_maybe_generics_definition()?;
         let ty = self.parse_ty()?;
         let (impl_trait, ty) = if self.eat_kw(Keyword::For) {
-            let tait = if let Token::Ident(_, name) = &self.curr {
-                self.parse_ty()?
-            } else {
-                return Err(());
-            };
-
+            let tait = self.parse_ty()?;
             (Some(ty), tait)
         } else {
             (None, ty)
@@ -752,6 +816,7 @@ impl Parser {
 
         let mut methods = vec![];
         let mut visibility = self.parse_visibility();
+        // collect all functions inside the impl block
         while self.check_kw(Keyword::Fn) {
             let function = self.parse_function(visibility.take())?;
             methods.push(function);
@@ -850,6 +915,7 @@ impl Parser {
             // Token::StrLit(_, _) => {}
             Token::NumLit(_, _) => self.parse_number_expr(),
             Token::OpenParen(_) => self.parse_paren_expr(),
+            Token::OpenBracket(_) => self.parse_array_constructor(),
             //#!Token::OpenCurly(_) => {}
             // Token::OpenBracket(_) => {}
             // Token::Eq(_) => {}
@@ -956,83 +1022,76 @@ impl Parser {
 
 const EOF_TOKEN: Token = Token::EOF(FixedTokenSpan::new(usize::MAX));
 
-#[derive(Copy, Clone, PartialEq)]
-enum GenericsMode {
-    Yes,
-    No, // this means that in the current parse step we don't allow parsing generics, we will allow them in the next one tho
-}
-
 #[cfg(test)]
-fn test_file(path: &str, assumed: Box<dyn Fn(Vec<Token>, Crate) -> bool>) -> bool {
+fn test_file<F: FnOnce(Vec<Token>, Crate) -> bool>(path: &str, assumed: F) -> bool {
     let file = fs::read_to_string(path).unwrap();
     let lexed = lexer::lex(file).unwrap();
-    let lexed_cloned = lexed.clone();
-    let mut token_stream = TokenStream::new(lexed);
+    let mut token_stream = TokenStream::new(lexed.clone());
     let mut parser = Parser::new(token_stream);
     let krate = parser.parse_crate().unwrap();
-    assumed(lexed_cloned, krate)
+    assumed(lexed, krate)
 }
 
 #[test]
 fn test_func() {
-    assert!(test_file(
-        "tests/func.tf",
-        Box::new(|tokens, krate| tokens.len() == 33 && krate.items.len() == 2)
-    ));
+    assert!(test_file("tests/func.tf", |tokens, krate| tokens.len()
+        == 33
+        && krate.items.len() == 2));
 }
 
 #[test]
 fn test_static() {
-    assert!(test_file(
-        "tests/static.tf",
-        Box::new(|tokens, krate| tokens.len() == 24 && krate.items.len() == 2)
-    ));
+    assert!(test_file("tests/static.tf", |tokens, krate| tokens.len()
+        == 24
+        && krate.items.len() == 2));
 }
 
 #[test]
 fn test_struct() {
-    assert!(test_file(
-        "tests/struct.tf",
-        Box::new(|tokens, krate| tokens.len() == 19 && krate.items.len() == 2)
-    ));
+    assert!(test_file("tests/struct.tf", |tokens, krate| tokens.len()
+        == 19
+        && krate.items.len() == 2));
 }
 
 #[test]
 fn test_trait() {
-    assert!(test_file(
-        "tests/trait.tf",
-        Box::new(|tokens, krate| tokens.len() == 29 && krate.items.len() == 2)
-    ));
+    assert!(test_file("tests/trait.tf", |tokens, krate| tokens.len()
+        == 29
+        && krate.items.len() == 2));
 }
 
 #[test]
 fn test_impl() {
-    assert!(test_file(
-        "tests/impl.tf",
-        Box::new(|tokens, krate| tokens.len() == 33 && krate.items.len() == 4)
-    ));
+    assert!(test_file("tests/impl.tf", |tokens, krate| tokens.len()
+        == 33
+        && krate.items.len() == 4));
 }
 
 #[test]
 fn test_struct_constructor() {
     assert!(test_file(
         "tests/struct_constructor.tf",
-        Box::new(|tokens, krate| tokens.len() == 32 && krate.items.len() == 2)
+        |tokens, krate| tokens.len() == 32 && krate.items.len() == 2
     ));
 }
 
 #[test]
 fn test_generics() {
-    assert!(test_file(
-        "tests/generics.tf",
-        Box::new(|tokens, krate| tokens.len() == 93 && krate.items.len() == 7)
-    ));
+    assert!(test_file("tests/generics.tf", |tokens, krate| tokens.len()
+        == 93
+        && krate.items.len() == 7));
 }
 
 #[test]
 fn test_ref() {
-    assert!(test_file(
-        "tests/ref.tf",
-        Box::new(|tokens, krate| tokens.len() == 74 && krate.items.len() == 5)
-    ));
+    assert!(test_file("tests/ref.tf", |tokens, krate| tokens.len()
+        == 74
+        && krate.items.len() == 5));
+}
+
+#[test]
+fn test_array() {
+    assert!(test_file("tests/array.tf", |tokens, krate| tokens.len()
+        == 72
+        && krate.items.len() == 2));
 }

@@ -51,7 +51,7 @@ impl TokenStream {
         self.tokens.len() > self.cursor
     }
 
-    pub fn look_ahead<F: Fn(&Token) -> bool>(&self, dist: usize, func: F) -> bool {
+    pub fn look_ahead<F: FnOnce(&Token) -> bool>(&self, dist: usize, func: F) -> bool {
         let dist = dist.max(1) - 1;
         if let Some(token) = self.tokens.get(self.cursor + dist) {
             func(token)

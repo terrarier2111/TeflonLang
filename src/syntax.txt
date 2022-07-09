@@ -48,3 +48,7 @@ Yeah, boxes need
 
 // FIXME: (maybe) function overloading
 // FIXME: specialization, negative impls represented as !Trait and not ?Trait
+// FIXME: (maybe) `!` operator as an addition to the `?` operator, but it acts as an implicit "unwrap" call instead of passing the error up
+
+// FIXME: look at: https://antelang.org/docs/language/
+

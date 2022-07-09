@@ -17,6 +17,7 @@ pub enum AstNode {
     CallExpr(CallExprNode),
     Block(Block),
     StructConstructor(StructConstructor), // FIXME: should this be renamed to StructInit?
+    ArrayInst(ArrayInst),
 }
 
 #[derive(Debug, Clone)]
@@ -141,9 +142,10 @@ pub struct LAssign {
     pub(crate) val: AstNode,
 }
 
+// LocalDeclareAssignment
 #[derive(Debug, Clone)]
 pub struct LDecAssign {
-    // LocalDeclareAssignment
+    pub(crate) mutability: Option<Mutability>,
     pub(crate) ty: Option<Ty>,
     pub(crate) val: LAssign,
 }
@@ -228,7 +230,7 @@ pub struct Ty {
 #[derive(Debug, Clone)]
 pub enum TyKind {
     Ref(Box<RefTy>),
-    // Array, // TODO
+    Array(Box<ArrayTy>),
     // Ptr, // TODO
     Owned(Box<OwnedTy>),
 }
@@ -244,6 +246,30 @@ pub struct RefTy {
 pub struct OwnedTy {
     pub(crate) name: String,
     pub(crate) generics: Box<[TyOrConstVal]>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayTy {
+    pub(crate) ty: Ty,
+    pub(crate) amount: Option<AstNode>,
+}
+
+/// This represents an array instantiation like: [6, 4, 2, 8, 3, 9] or [6; 20]
+#[derive(Debug, Clone)]
+pub enum ArrayInst {
+    List(ArrayInstList),
+    Short(Box<ArrayInstShort>),
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayInstList {
+    pub(crate) vals: Box<[AstNode]>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayInstShort {
+    pub(crate) val: AstNode,
+    pub(crate) amount: AstNode,
 }
 
 #[derive(Debug, Clone)]
