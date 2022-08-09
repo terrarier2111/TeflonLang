@@ -21,10 +21,10 @@ https://github.com/rust-lang/rfcs/blob/master/text/2582-raw-reference-mir-operat
 
 The safe parts of rust are so well thought out and nice, but the unsafe parts really were just an afterthought I feel
 especially the early rust attitude of "it's fine if you're careful" will really hurt future development
-i mean, we're already breaking stability promises by making std::mem::uninitialized::<bool>() UB
+I mean, we're already breaking stability promises by making std::mem::uninitialized::<bool>() UB
 sure, it's completely sane, but some time ago we said that it's fine if you're careful
 
-i still find it hilarious that we put noalias on box without telling anyone
+I still find it hilarious that we put noalias on box without telling anyone
 
 https://github.com/rust-lang/rust/pull/91970/files
 
@@ -52,3 +52,11 @@ Yeah, boxes need
 
 // FIXME: look at: https://antelang.org/docs/language/
 
+
+- SUPPORT FUNCTION OVERLOADING
+- SUPPORT default arguments in functions
+e.g: fn f(b: u32, x: i32 = -1, y: u64 = 0)
+- let `_` indicate that a default argument should be used, but if a normal value gets passed, the default value is ignored
+so in our case: f(4, _, 2)
+- let '..' indicate that the remaining parameters should use their default value
+e.g: f(4, ..) would mean f(4, -1, 0)
