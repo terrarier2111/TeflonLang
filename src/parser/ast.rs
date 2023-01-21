@@ -1,12 +1,61 @@
 use crate::diagnostics::span::Span;
 use crate::lexer::token::BinOp;
 use crate::parser::attrs::{Constness, Mutability, Visibility};
+use crate::tyck::{Adt, DEFAULT_PATH, EMPTY, Environment, TyCtx};
 
 // FIXME: interesting: https://en.wikipedia.org/wiki/Terminal_and_nonterminal_symbols
 
 #[derive(Debug, Clone)]
 pub struct Crate {
     pub(crate) items: Box<[ItemKind]>,
+}
+
+impl Crate {
+
+    pub fn build_ctx(&self) -> TyCtx {
+        let mut ret = TyCtx {
+            env: Environment::new(),
+        };
+
+        // early resolution
+        for item in &*self.items {
+            match item {
+                ItemKind::StaticVal(val) => {
+                    ret.env.define_static_var(val.left().clone(), crate::tyck::Ty::from_ast_ty(val.ty.clone().kind, None));
+                }
+                ItemKind::ConstVal(val) => {
+                    let mut ty = crate::tyck::Ty::from_ast_ty(val.ty.clone().kind, None);
+                    if let AstNode::BinaryExpr(expr) = &val.val {
+                        println!("try resolve from: {:?}", &expr.rhs);
+                        if let Some(helper) = EMPTY.resolve_ty(&expr.rhs) {
+                            println!("helper: {:?}", helper);
+                            // FIXME: check if `ty` and `helper` are similar!
+                            ty = helper;
+                        }
+                    } else {
+                        panic!("Expected to find a BinaryExpr!");
+                    }
+                    println!("resolved const: {:?}", ty);
+                    ret.env.define_static_var(val.left().clone(), ty);
+                }
+                ItemKind::FunctionDef(func) => {
+                    ret.env.define_static_func(func.header.name.clone(), Box::into_inner(func.clone()));
+                }
+                ItemKind::StructDef(def) => {
+                    println!("define adt!");
+                    ret.env.define_adt(DEFAULT_PATH.to_string(), def.name.clone(), Adt::Struct(def.clone()));
+                }
+                ItemKind::TraitDef(_) => {}
+                ItemKind::StructImpl(s_impl) => {
+                    // ret.env.define_impl(DEFAULT_PATH, s_impl..name.clone(), Adt::Struct(def.clone()));
+                    // FIXME: finish this!
+                }
+            }
+        }
+
+        ret
+    }
+
 }
 
 #[derive(Debug, Clone)]
@@ -42,13 +91,14 @@ pub enum ItemKind {
     FunctionDef(Box<FunctionNode>),
     StructDef(StructDef),
     TraitDef(TraitDef),
-    StructImpl(StructImpl),
+    StructImpl(AdtImpl),
 }
 
 #[derive(Debug, Clone)]
 pub struct Block {
     pub(crate) modifiers: BlockModifiers,
     pub(crate) stmts: Box<[StmtKind] /*[Stmt]*/>, // FIXME: switch to stmts
+    // FIXME: th last thingy should be either empty or an AstNode
 }
 
 #[derive(Debug, Clone)]
@@ -81,10 +131,14 @@ pub struct StaticValNode {
 
 impl StaticValNode {
     pub fn left(&self) -> &String {
-        if let AstNode::Ident(lhs) = &self.val {
-            lhs
+        if let AstNode::BinaryExpr(bin) = &self.val {
+            if let AstNode::Ident(lhs) = &bin.lhs {
+                lhs
+            } else {
+                panic!("The lhs node of the assignment was {:?} and not the name of the variable it was assigned to!", self.val)
+            }
         } else {
-            panic!("The lhs node of the assignment was {:?} and not the name of the variable it was assigned to!", self.val)
+            panic!("The node of the assignment was {:?} and not a binary expression!", self.val)
         }
     }
 }
@@ -99,10 +153,14 @@ pub struct ConstValNode {
 
 impl ConstValNode {
     pub fn left(&self) -> &String {
-        if let AstNode::Ident(lhs) = &self.val {
-            lhs
+        if let AstNode::BinaryExpr(bin) = &self.val {
+            if let AstNode::Ident(lhs) = &bin.lhs {
+                lhs
+            } else {
+                panic!("The lhs node of the assignment was {:?} and not the name of the variable it was assigned to!", self.val)
+            }
         } else {
-            panic!("The lhs node of the assignment was {:?} and not the name of the variable it was assigned to!", self.val)
+            panic!("The node of the assignment was {:?} and not a binary expression!", self.val)
         }
     }
 }
@@ -175,7 +233,7 @@ pub struct TraitDef {
 }
 
 #[derive(Debug, Clone)]
-pub struct StructImpl {
+pub struct AdtImpl {
     pub(crate) ty: Ty,
     pub(crate) impl_trait: Option<Ty>, // this may not be generic
     pub(crate) generics: Box<[Generic]>,
@@ -270,6 +328,17 @@ pub struct ArrayInstList {
 pub struct ArrayInstShort {
     pub(crate) val: AstNode,
     pub(crate) amount: AstNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayIndexing {
+    pub(crate) array: Path,
+    pub(crate) idx_val: AstNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct Path {
+    // FIXME: design this properly!
 }
 
 #[derive(Debug, Clone)]

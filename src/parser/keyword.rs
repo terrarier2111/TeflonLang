@@ -1,7 +1,4 @@
-use crate::parser::keyword::Keyword::{
-    Else, Enum, Fn, For, If, Impl, In, Let, Loop, Match, Mod, Mut, Pub, Rt, SelfLower, SelfUpper,
-    Static, Struct, Trait, Type, While,
-};
+use crate::parser::keyword::Keyword::{Const, Else, Enum, Fn, For, If, Impl, In, Let, Loop, Match, Mod, Mut, Pub, Rt, SelfLower, SelfUpper, Static, Struct, Trait, Type, While};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Keyword {
@@ -38,6 +35,7 @@ impl Keyword {
         match str {
             "pub" => Some(Pub),
             "static" => Some(Static),
+            "const" => Some(Const),
             "runtime" => Some(Rt),
             "let" => Some(Let),
             "fn" => Some(Fn),

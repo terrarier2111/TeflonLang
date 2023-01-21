@@ -33,16 +33,6 @@ pub enum TokenType {
     Invalid,
 }
 
-impl TokenType {
-    pub fn is_buffered_token(&self) -> bool {
-        // FIXME: do we even need this method?
-        matches!(
-            self,
-            TokenType::NumLit | TokenType::StrLit | TokenType::Ident | TokenType::Keyword
-        )
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Token {
     Ident(Span, String),
@@ -82,28 +72,28 @@ impl Token {
             Token::BinOp(sp, _) => *sp,
             Token::StrLit(sp, _) => *sp,
             Token::NumLit(sp, _) => *sp,
-            Token::Comma(sp) => Span::single_token(sp.0),
-            Token::OpenParen(sp) => Span::single_token(sp.0),
-            Token::ClosedParen(sp) => Span::single_token(sp.0),
-            Token::OpenCurly(sp) => Span::single_token(sp.0),
-            Token::ClosedCurly(sp) => Span::single_token(sp.0),
-            Token::OpenBracket(sp) => Span::single_token(sp.0),
-            Token::ClosedBracket(sp) => Span::single_token(sp.0),
-            Token::Colon(sp) => Span::single_token(sp.0),
-            Token::Semi(sp) => Span::single_token(sp.0),
-            Token::Invalid(sp, _) => Span::single_token(sp.0),
-            Token::Apostrophe(sp) => Span::single_token(sp.0),
-            Token::OpenAngle(sp) => Span::single_token(sp.0),
-            Token::ClosedAngle(sp) => Span::single_token(sp.0),
-            Token::Hashtag(sp) => Span::single_token(sp.0),
-            Token::Star(sp) => Span::single_token(sp.0),
-            Token::Dot(sp) => Span::single_token(sp.0),
-            Token::Question(sp) => Span::single_token(sp.0),
-            Token::Arrow(sp) => Span::fixed_token::<2>(sp.0),
-            Token::And(sp) => Span::single_token(sp.0),
-            Token::Or(sp) => Span::single_token(sp.0),
+            Token::Comma(sp) => sp.to_unfixed_span(),
+            Token::OpenParen(sp) => sp.to_unfixed_span(),
+            Token::ClosedParen(sp) => sp.to_unfixed_span(),
+            Token::OpenCurly(sp) => sp.to_unfixed_span(),
+            Token::ClosedCurly(sp) => sp.to_unfixed_span(),
+            Token::OpenBracket(sp) => sp.to_unfixed_span(),
+            Token::ClosedBracket(sp) => sp.to_unfixed_span(),
+            Token::Colon(sp) => sp.to_unfixed_span(),
+            Token::Semi(sp) => sp.to_unfixed_span(),
+            Token::Invalid(sp, _) => sp.to_unfixed_span(),
+            Token::Apostrophe(sp) => sp.to_unfixed_span(),
+            Token::OpenAngle(sp) => sp.to_unfixed_span(),
+            Token::ClosedAngle(sp) => sp.to_unfixed_span(),
+            Token::Hashtag(sp) => sp.to_unfixed_span(),
+            Token::Star(sp) => sp.to_unfixed_span(),
+            Token::Dot(sp) => sp.to_unfixed_span(),
+            Token::Question(sp) => sp.to_unfixed_span(),
+            Token::Arrow(sp) => sp.to_unfixed_span(),
+            Token::And(sp) => sp.to_unfixed_span(),
+            Token::Or(sp) => sp.to_unfixed_span(),
             Token::Comment(sp, _) => *sp,
-            Token::EOF(sp) => Span::single_token(sp.0),
+            Token::EOF(sp) => sp.to_unfixed_span(),
         }
     }
 

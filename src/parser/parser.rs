@@ -7,7 +7,7 @@ use crate::parser::ast::{
     BlockModifiers, CallExprNode, ConstValNode, Crate, FunctionHeader, FunctionModifiers,
     FunctionNode, Generic, GenericConstant, GenericLifetime, GenericType, ItemKind, LAssign,
     LDecAssign, Lifetime, LocalAssign, NumberType, OwnedTy, RefTy, StaticValNode, Stmt, StmtKind,
-    StructConstructor, StructDef, StructFieldDef, StructImpl, TraitDef, Ty, TyKind, TyOrConstVal,
+    StructConstructor, StructDef, StructFieldDef, AdtImpl, TraitDef, Ty, TyKind, TyOrConstVal,
 };
 use crate::parser::attrs::{Constness, Mutability, Visibility};
 use crate::parser::keyword::Keyword;
@@ -51,6 +51,7 @@ impl Parser {
                 Err(_) => {
                     self.advance(); // FIXME: is this correct?
                                     // FIXME: insert error into diagnostics builder
+                    println!("err!!!");
                 }
             }
         }
@@ -268,37 +269,34 @@ impl Parser {
 
             let mut rhs = Some(self.parse_primary()?);
 
-            if rhs.is_some() {
-                // If BinOp binds less tightly with RHS than the operator after RHS, let
-                // the pending operator take RHS as its LHS.
-                let next_bin_op = if let Token::BinOp(_, bin_op) = &self.curr {
-                    Some(*bin_op)
-                } else {
-                    None
-                };
+            // If BinOp binds less tightly with RHS than the operator after RHS, let
+            // the pending operator take RHS as its LHS.
+            let next_bin_op = if let Token::BinOp(_, bin_op) = &self.curr {
+                Some(*bin_op)
+            } else {
+                None
+            };
 
-                if let Some(next_bin_op) = next_bin_op {
-                    if bin_op.precedence() < next_bin_op.precedence() {
-                        rhs = rhs.map(|rhs| {
-                            self.parse_bin_op_rhs(bin_op.precedence() + 1, rhs).unwrap()
-                        });
-                        if rhs.is_none() {
-                            return Err(()); // FIXME: is this correct?
-                        }
-                    }
-                } else {
+            match next_bin_op {
+                None => {
                     return Ok(AstNode::BinaryExpr(Box::new(BinaryExprNode {
                         lhs,
                         rhs: rhs.take().unwrap(),
                         op: bin_op,
                     })));
+                },
+                Some(next_bin_op) => {
+                    if bin_op.precedence() < next_bin_op.precedence() {
+                        rhs = rhs.map(|rhs| {
+                            self.parse_bin_op_rhs(bin_op.precedence() + 1, rhs).unwrap()
+                        });
+                    }
+                    lhs = AstNode::BinaryExpr(Box::new(BinaryExprNode {
+                        lhs,
+                        rhs: rhs.take().unwrap(),
+                        op: bin_op,
+                    }));
                 }
-
-                lhs = AstNode::BinaryExpr(Box::new(BinaryExprNode {
-                    lhs,
-                    rhs: rhs.take().unwrap(),
-                    op: bin_op,
-                }))
             }
         }
     }
@@ -831,7 +829,7 @@ impl Parser {
             return Err(());
         }
 
-        Ok(ItemKind::StructImpl(StructImpl {
+        Ok(ItemKind::StructImpl(AdtImpl {
             ty,
             impl_trait,
             generics,
@@ -854,8 +852,13 @@ impl Parser {
                     }
                     Keyword::Static => self.parse_static(visibility),
                     Keyword::Const => {
-                        // FIXME: distinguish between const func and const value!
-                        Err(())
+                        if self.token_stream.look_ahead(1, |x| x.to_type() == TokenType::Ident) {
+                            self.parse_const(visibility)
+                        } else {
+                            // FIXME: parse function attrs and then the function itself
+                            println!("don't parse const!");
+                            Err(())
+                        }
                     }
                     Keyword::Rt => Err(()), // FIXME: ?
                     Keyword::Fn => self.parse_function(visibility),
@@ -1020,7 +1023,7 @@ impl Parser {
     }
 }
 
-const EOF_TOKEN: Token = Token::EOF(FixedTokenSpan::new(usize::MAX));
+const EOF_TOKEN: Token = Token::EOF(FixedTokenSpan::<1>::NONE);
 
 #[cfg(test)]
 fn test_file<F: FnOnce(Vec<Token>, Crate) -> bool>(path: &str, assumed: F) -> bool {

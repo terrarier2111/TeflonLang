@@ -6,7 +6,7 @@ use crate::parser::keyword::Keyword;
 pub mod token;
 
 pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
-    let input = input.chars().collect::<Vec<char>>();
+    let input = input.chars().collect::<Vec<_>>();
     let mut cursor = 0_usize;
     let mut diagnostics_builder = DiagnosticBuilder::new();
     let mut tokens = vec![];
