@@ -7,8 +7,9 @@ use crate::parser::token_stream::TokenStream;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Write};
 use std::{env, fs};
-use crate::parser::ast::ItemKind;
-use crate::tyck::{DEFAULT_PATH, Ty};
+use crate::diagnostics::builder::DiagnosticBuilder;
+use crate::parser::ast::{ItemKind, StmtKind};
+use crate::tyck::{DEFAULT_PATH, Ty, tyck_item};
 
 mod diagnostics;
 mod lexer;
@@ -35,53 +36,9 @@ fn main() {
     println!("tokens: {}", tokens);
     println!("items: {}", krate.items.len());
     let mut tyck_ctx = krate.build_ctx();
+    let mut diagnostics = DiagnosticBuilder::new();
     for item in &*krate.items {
-        match item {
-            ItemKind::StaticVal(val) => {
-                if let Some(resolved) = tyck_ctx.resolve_ty(&val.val) {
-                    let resolved = if let Ty::Unresolved(ref ty) = resolved {
-                        if let Some(val) = tyck_ctx.resolve_named_ty(&DEFAULT_PATH.to_string(), &ty.name) {
-                            if let Ty::Unresolved(ty) = val {
-                                panic!("Can't properly resolve: {:?}", ty);
-                            } else {
-                                val.clone()
-                            }
-                        } else {
-                            panic!("Can't resolve ty: {:?}", resolved);
-                        }
-                    } else {
-                        resolved
-                    };
-                    println!("resolved ty: {:?}", resolved);
-                } else {
-                    panic!("Outer unresolved!");
-                }
-            }
-            ItemKind::ConstVal(val) => {
-                if let Some(resolved) = tyck_ctx.resolve_ty(&val.val) {
-                    let resolved = if let Ty::Unresolved(ref ty) = resolved {
-                        if let Some(val) = tyck_ctx.resolve_named_ty(&DEFAULT_PATH.to_string(), &ty.name) {
-                            if let Ty::Unresolved(ty) = val {
-                                panic!("Can't properly resolve: {:?}", ty);
-                            } else {
-                                val.clone()
-                            }
-                        } else {
-                            panic!("Can't resolve ty: {:?}", resolved);
-                        }
-                    } else {
-                        resolved
-                    };
-                    println!("resolved ty: {:?}", resolved);
-                } else {
-                    panic!("Outer unresolved!");
-                }
-            }
-            ItemKind::FunctionDef(_) => {}
-            ItemKind::StructDef(_) => {}
-            ItemKind::TraitDef(_) => {}
-            ItemKind::StructImpl(_) => {}
-        }
+        tyck_item(&mut tyck_ctx, item);
     }
 }
 

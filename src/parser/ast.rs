@@ -19,38 +19,7 @@ impl Crate {
 
         // early resolution
         for item in &*self.items {
-            match item {
-                ItemKind::StaticVal(val) => {
-                    ret.env.define_static_var(val.left().clone(), crate::tyck::Ty::from_ast_ty(val.ty.clone().kind, None));
-                }
-                ItemKind::ConstVal(val) => {
-                    let mut ty = crate::tyck::Ty::from_ast_ty(val.ty.clone().kind, None);
-                    if let AstNode::BinaryExpr(expr) = &val.val {
-                        println!("try resolve from: {:?}", &expr.rhs);
-                        if let Some(helper) = EMPTY.resolve_ty(&expr.rhs) {
-                            println!("helper: {:?}", helper);
-                            // FIXME: check if `ty` and `helper` are similar!
-                            ty = helper;
-                        }
-                    } else {
-                        panic!("Expected to find a BinaryExpr!");
-                    }
-                    println!("resolved const: {:?}", ty);
-                    ret.env.define_static_var(val.left().clone(), ty);
-                }
-                ItemKind::FunctionDef(func) => {
-                    ret.env.define_static_func(func.header.name.clone(), Box::into_inner(func.clone()));
-                }
-                ItemKind::StructDef(def) => {
-                    println!("define adt!");
-                    ret.env.define_adt(DEFAULT_PATH.to_string(), def.name.clone(), Adt::Struct(def.clone()));
-                }
-                ItemKind::TraitDef(_) => {}
-                ItemKind::StructImpl(s_impl) => {
-                    // ret.env.define_impl(DEFAULT_PATH, s_impl..name.clone(), Adt::Struct(def.clone()));
-                    // FIXME: finish this!
-                }
-            }
+            ret.insert_item_glob(item);
         }
 
         ret

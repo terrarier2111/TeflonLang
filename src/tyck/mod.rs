@@ -25,14 +25,12 @@
 
 // https://github.com/audulus/lyte
 
-mod infer;
-
 use crate::parser::attrs::{Mutability, Visibility};
 use std::collections::HashMap;
 use std::string::ToString;
 use lazy_static::lazy_static;
 use crate::parser::ast;
-use crate::parser::ast::{ArrayInst, AstNode, FunctionNode, StmtKind, StructDef, AdtImpl, TyKind, TyOrConstVal};
+use crate::parser::ast::{ArrayInst, AstNode, FunctionNode, StmtKind, StructDef, AdtImpl, TyKind, TyOrConstVal, ItemKind, LocalAssign};
 
 pub const DEFAULT_PATH: &str = ""; // TODO: get rid of this once paths are properly implemented!
 
@@ -52,6 +50,27 @@ lazy_static! {
 }
 
 impl TyCtx {
+
+    pub fn push_scope(&mut self) {
+        self.env.push_scope();
+    }
+
+    pub fn pop_scope(&mut self) {
+        self.env.pop_scope();
+    }
+
+    pub fn push_local(&mut self, local_assign: &LocalAssign) {
+        match local_assign {
+            LocalAssign::Assign(assign) => {
+                let ty = tyck_node(self, &assign.val);
+                self.env.define_var(assign.name.clone(), ty);
+            }
+            LocalAssign::DecAssign(assign) => {
+                let ty = tyck_node(self, &assign.val.val);
+                self.env.define_var(assign.val.name.clone(), ty);
+            }
+        }
+    }
 
     pub fn resolve_ty(&self, ast_node: &AstNode) -> Option<Ty> {
         match ast_node {
@@ -106,6 +125,189 @@ impl TyCtx {
         self.env.adts_by_path.get(path).map(|x| x.get(name).map(|x| &x.1)).flatten()
     }
 
+    pub fn insert_item_glob(&mut self, item: &ItemKind) {
+        match item {
+            ItemKind::StaticVal(val) => {
+                self.env.define_static_var(val.left().clone(), crate::tyck::Ty::from_ast_ty(val.ty.clone().kind, None));
+            }
+            ItemKind::ConstVal(val) => {
+                let mut ty = crate::tyck::Ty::from_ast_ty(val.ty.clone().kind, None);
+                if let AstNode::BinaryExpr(expr) = &val.val {
+                    println!("try resolve from: {:?}", &expr.rhs);
+                    if let Some(helper) = EMPTY.resolve_ty(&expr.rhs) {
+                        println!("helper: {:?}", helper);
+                        // FIXME: check if `ty` and `helper` are similar!
+                        ty = helper;
+                    }
+                } else {
+                    panic!("Expected to find a BinaryExpr!");
+                }
+                println!("resolved const: {:?}", ty);
+                self.env.define_static_var(val.left().clone(), ty);
+            }
+            ItemKind::FunctionDef(func) => {
+                self.env.define_static_func(func.header.name.clone(), Box::into_inner(func.clone()));
+            }
+            ItemKind::StructDef(def) => {
+                println!("define adt!");
+                self.env.define_adt(DEFAULT_PATH.to_string(), def.name.clone(), Adt::Struct(def.clone()));
+            }
+            ItemKind::TraitDef(_) => {}
+            ItemKind::StructImpl(s_impl) => {
+                // self.env.define_impl(DEFAULT_PATH, s_impl..name.clone(), Adt::Struct(def.clone()));
+                // FIXME: finish this!
+            }
+        }
+    }
+
+    pub fn insert_item_local(&mut self, item: &ItemKind) {
+        match item {
+            ItemKind::StaticVal(val) => {
+                self.env.define_var(val.left().clone(), crate::tyck::Ty::from_ast_ty(val.ty.clone().kind, None));
+            }
+            ItemKind::ConstVal(val) => {
+                let mut ty = crate::tyck::Ty::from_ast_ty(val.ty.clone().kind, None);
+                if let AstNode::BinaryExpr(expr) = &val.val {
+                    println!("try resolve from: {:?}", &expr.rhs);
+                    if let Some(helper) = EMPTY.resolve_ty(&expr.rhs) {
+                        println!("helper: {:?}", helper);
+                        // FIXME: check if `ty` and `helper` are similar!
+                        ty = helper;
+                    }
+                } else {
+                    panic!("Expected to find a BinaryExpr!");
+                }
+                println!("resolved const: {:?}", ty);
+                self.env.define_var(val.left().clone(), ty);
+            }
+            ItemKind::FunctionDef(func) => {
+                self.env.define_func(func.header.name.clone(), Box::into_inner(func.clone()));
+            }
+            ItemKind::StructDef(_) => {
+                panic!("You can't define structs in locals");
+            }
+            ItemKind::TraitDef(_) => {}
+            ItemKind::StructImpl(s_impl) => {
+                // self.env.define_impl(DEFAULT_PATH, s_impl..name.clone(), Adt::Struct(def.clone()));
+                // FIXME: finish this!
+            }
+        }
+    }
+
+}
+
+pub fn tyck_node(tyck_ctx: &mut TyCtx, node: &AstNode) -> Ty {
+    if let Some(ty) = tyck_ctx.resolve_ty(node) {
+        if let Ty::Unresolved(_unresolved) = &ty {
+            panic!("Can't properly resolve type: {:?}", ty);
+        }
+        ty
+    } else {
+        panic!("Can't resolve type!");
+    }
+}
+
+pub fn tyck_item(tyck_ctx: &mut TyCtx, item: &ItemKind) {
+    match item {
+        ItemKind::StaticVal(val) => {
+            if let Some(resolved) = tyck_ctx.resolve_ty(&val.val) {
+                let resolved = if let Ty::Unresolved(ref ty) = resolved {
+                    if let Some(val) = tyck_ctx.resolve_named_ty(&DEFAULT_PATH.to_string(), &ty.name) {
+                        if let Ty::Unresolved(ty) = val {
+                            panic!("Can't properly resolve: {:?}", ty);
+                        } else {
+                            val.clone()
+                        }
+                    } else {
+                        panic!("Can't resolve ty: {:?}", resolved);
+                    }
+                } else {
+                    resolved
+                };
+                println!("resolved ty: {:?}", resolved);
+            } else {
+                panic!("Outer unresolved!");
+            }
+        }
+        ItemKind::ConstVal(val) => {
+            if let Some(resolved) = tyck_ctx.resolve_ty(&val.val) {
+                let resolved = if let Ty::Unresolved(ref ty) = resolved {
+                    if let Some(val) = tyck_ctx.resolve_named_ty(&DEFAULT_PATH.to_string(), &ty.name) {
+                        if let Ty::Unresolved(ty) = val {
+                            panic!("Can't properly resolve: {:?}", ty);
+                        } else {
+                            val.clone()
+                        }
+                    } else {
+                        panic!("Can't resolve ty: {:?}", resolved);
+                    }
+                } else {
+                    resolved
+                };
+                println!("resolved ty: {:?}", resolved);
+            } else {
+                panic!("Outer unresolved!");
+            }
+        }
+        ItemKind::FunctionDef(func) => {
+            // FIXME: typeck all body statements (and also push a new scope on the scope stack)
+            tyck_ctx.push_scope();
+            for body in &*func.body.stmts {
+                match body {
+                    StmtKind::Item(item) => {
+                        tyck_ctx.insert_item_local(item);
+                    }
+                    StmtKind::LocalAssign(_) => {}
+                    StmtKind::Expr(_) => {}
+                    StmtKind::Semi(_) => {}
+                    StmtKind::Empty => {}
+                }
+            }
+            for body in &*func.body.stmts {
+                match body {
+                    StmtKind::Item(item) => {
+                        tyck_item(tyck_ctx, item);
+                    }
+                    StmtKind::LocalAssign(local) => {
+                        match local {
+                            LocalAssign::Assign(assign) => {
+                                tyck_node(tyck_ctx, &assign.val);
+                            }
+                            LocalAssign::DecAssign(assign) => {
+                                tyck_node(tyck_ctx, &assign.val.val);
+                            }
+                        }
+                        tyck_ctx.push_local(local);
+                    }
+                    StmtKind::Expr(expr) => {
+                        tyck_node(tyck_ctx, expr);
+                    }
+                    StmtKind::Semi(semi) => {
+                        tyck_node(tyck_ctx, semi);
+                    }
+                    StmtKind::Empty => {}
+                }
+            }
+            tyck_ctx.pop_scope();
+        }
+        ItemKind::StructDef(def) => {
+            for field in &*def.fields {
+                if let Some(ty) = tyck_ctx.resolve_named_ty(&DEFAULT_PATH.to_string(), &field.name) {
+                    if let Ty::Unresolved(unresolved) = ty {
+                        panic!("Can't resolve type Inner: {:?}", unresolved);
+                    }
+                } else {
+                    panic!("Can't resolve type Outer!");
+                }
+            }
+        }
+        ItemKind::TraitDef(_) => {
+            // FIXME: typeck the trait!
+        }
+        ItemKind::StructImpl(_s_impl) => {
+            // FIXME: typeck all body statements
+        }
+    }
 }
 
 pub struct Environment {
