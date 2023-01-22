@@ -78,7 +78,18 @@ impl TyCtx {
             AstNode::Ident(ident) => self.env.resolve_var(ident),
             AstNode::BinaryExpr(expr) => {
                 // FIXME: support different return types (as in different from the base type)
-                self.resolve_ty(&expr.lhs)
+                let expected_ty = self.resolve_ty(&expr.lhs);
+                if let Some(expected_ty) = &expected_ty {
+                    let rhs_ty = self.resolve_ty(&expr.rhs);
+                    if let Some(rhs_ty) = rhs_ty {
+                        if !expected_ty.could_be(&rhs_ty) {
+                            panic!("Types of BinaryExpr differ: lhs: {:?} rhs: {:?}", expected_ty, rhs_ty);
+                        }
+                    } else {
+                        panic!("Can't resolve type of rhs of BinaryExpr!");
+                    }
+                }
+                expected_ty
             }
             AstNode::CallExpr(call) => {
                 self.env.resolve_func(&call.callee).map(|x| x.header.ret.clone().map(|ty| Ty::from_ast_ty(ty.kind, None))).flatten()
@@ -334,12 +345,13 @@ impl Adt {
 
 }
 
+#[derive(PartialEq)]
 pub enum Dest {
     Static(Ty),
     Local(Vec<Ty>),
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq)]
 struct Scope {
     vars: HashMap<String, Dest>,
     funcs: HashMap<String, FunctionNode>,
@@ -465,7 +477,7 @@ impl Environment {
 
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Ty {
     Empty,
     Enum(EnumTy),
@@ -481,7 +493,85 @@ pub enum Ty {
 impl Ty {
 
     pub fn could_be(&self, other: &Ty) -> bool {
-        todo!()
+        if self == other {
+            return true;
+        }
+        // FIXME: finish this!
+        if let Ty::Unresolved(unresolved) = self {
+            return match other {
+                Ty::Empty => &unresolved.name == "()",
+                Ty::Enum(emum) => &unresolved.name == &emum.name,
+                Ty::Struct(strukt) => &unresolved.name == &strukt.name,
+                Ty::Union(uni) => &unresolved.name == &uni.name,
+                Ty::Tuple(tuple) => {
+                    let mut str = String::from("(");
+                    for field in &tuple.fields {
+                        str.push_str(&field.name);
+                        str.push(',');
+                    }
+                    if !tuple.fields.is_empty() {
+                        str.pop();
+                    }
+                    str.push(')');
+                    &unresolved.name == &str
+                },
+                Ty::Array(_) => todo!(),
+                Ty::Primitive(prim) => &unresolved.name == &prim.to_string(),
+                Ty::Ref(rf) => {
+                    let ret = unresolved.name.chars().next() == Some('&');
+                    if !ret {
+                        return false;
+                    }
+                    let mut new_name = unresolved.name.clone();
+                    new_name.remove(0);
+                    let middle = Ty::Unresolved(UnresolvedTy {
+                        name: new_name,
+                        generics: unresolved.generics.clone(),
+                    });
+                    rf.ty.could_be(&middle)
+                },
+                Ty::Unresolved(_) => false,
+            };
+        }
+
+        if let Ty::Unresolved(unresolved) = other {
+            return match self {
+                Ty::Empty => &unresolved.name == "()",
+                Ty::Enum(emum) => &unresolved.name == &emum.name,
+                Ty::Struct(strukt) => &unresolved.name == &strukt.name,
+                Ty::Union(uni) => &unresolved.name == &uni.name,
+                Ty::Tuple(tuple) => {
+                    let mut str = String::from("(");
+                    for field in &tuple.fields {
+                        str.push_str(&field.name);
+                        str.push(',');
+                    }
+                    if !tuple.fields.is_empty() {
+                        str.pop();
+                    }
+                    str.push(')');
+                    &unresolved.name == &str
+                },
+                Ty::Array(_) => todo!(),
+                Ty::Primitive(prim) => &unresolved.name == &prim.to_string(),
+                Ty::Ref(rf) => {
+                    let ret = unresolved.name.chars().next() == Some('&');
+                    if !ret {
+                        return false;
+                    }
+                    let mut new_name = unresolved.name.clone();
+                    new_name.remove(0);
+                    let middle = Ty::Unresolved(UnresolvedTy {
+                        name: new_name,
+                        generics: unresolved.generics.clone(),
+                    });
+                    rf.ty.could_be(&middle)
+                },
+                Ty::Unresolved(_) => false,
+            };
+        }
+
+        false // FIXME: is this correct?
     }
 
     pub fn from_ast_ty(ast_ty: ast::TyKind, scaffolding: Option<TyScaffolding>) -> Self {
@@ -511,61 +601,61 @@ impl Ty {
 
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TyScaffolding {
     Struct,
     Enum,
     Union,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumTy {
     pub name: String,
     pub vis: Visibility,
     pub variants: Vec<EnumVariant>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumVariant {
     pub name: String,
     pub ord: usize,
     pub fields: Vec<Ty>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructTy {
     pub vis: Visibility,
     pub name: String,
     pub fields: Box<[StructField]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructField {
     pub vis: Visibility,
     pub name: String,
     pub ty: Ty,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnionTy {
     pub vis: Visibility,
     pub name: String,
     pub fields: Vec<StructField>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TupleTy {
     pub fields: Vec<StructField>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArrayTy {
     pub elem_ty: Box<Ty>,
     // pub len: Option<usize>,
     // FIXME: how do we deal with length? do we store it in here or ignore it for now?
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PrimitiveTy {
     Bool,
     Char,
@@ -576,12 +666,40 @@ pub enum PrimitiveTy {
     SizedFloat(SizedFloatTy),
 }
 
-#[derive(Debug, Clone)]
+impl PrimitiveTy {
+
+    pub fn to_string(&self) -> String {
+        match self {
+            PrimitiveTy::Bool => "bool".to_string(),
+            PrimitiveTy::Char => "char".to_string(),
+            PrimitiveTy::Str => "str".to_string(),
+            PrimitiveTy::MachineSizedInt(ms) => {
+                if ms.unsigned {
+                    "usize".to_string()
+                } else {
+                    "isize".to_string()
+                }
+            },
+            PrimitiveTy::SizedInt(si) => {
+                if si.unsigned {
+                    format!("u{}", si.bits())
+                } else {
+                    format!("i{}", si.bits())
+                }
+            },
+            PrimitiveTy::UnsizedInt => "i32".to_string(),
+            PrimitiveTy::SizedFloat(sf) => format!("f{}", sf.bits()),
+        }
+    }
+
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct MachineSizedIntTy {
     pub unsigned: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SizedIntTy {
     pub unsigned: bool,
     pub exp: usize, // the size of the ty as an exponent of 2, the bits can be calculated as f(x) = 8 * (2 << x)
@@ -593,7 +711,7 @@ impl SizedIntTy {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SizedFloatTy {
     pub unsigned: bool,
     pub exp: usize, // the size of the ty as an exponent of 2, the bits can be calculated as f(x) = 32 * (2 << x)
@@ -605,14 +723,14 @@ impl SizedFloatTy {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RefTy {
     pub lt: Option<Lifetime>,
     pub mutability: Mutability,
     pub ty: Box<Ty>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Lifetime {
     Custom(String),
     Static,
@@ -631,7 +749,7 @@ impl Lifetime {
 
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnresolvedTy {
     pub name: String,
     pub generics: Box<[TyOrConstVal]>,

@@ -5,7 +5,7 @@ use crate::tyck::{Adt, DEFAULT_PATH, EMPTY, Environment, TyCtx};
 
 // FIXME: interesting: https://en.wikipedia.org/wiki/Terminal_and_nonterminal_symbols
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Crate {
     pub(crate) items: Box<[ItemKind]>,
 }
@@ -27,7 +27,7 @@ impl Crate {
 
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AstNode {
     Number(NumberType),
     Ident(String),
@@ -38,13 +38,13 @@ pub enum AstNode {
     ArrayInst(ArrayInst),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Stmt {
     pub(crate) val: AstNode,
     // pub(crate) span: Span, // FIXME: somehow retrieve(and keep) span information
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StmtKind {
     Item(ItemKind),
     LocalAssign(LocalAssign),
@@ -53,7 +53,7 @@ pub enum StmtKind {
     Empty,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ItemKind {
     StaticVal(Box<StaticValNode>),
     ConstVal(Box<ConstValNode>),
@@ -63,33 +63,33 @@ pub enum ItemKind {
     StructImpl(AdtImpl),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     pub(crate) modifiers: BlockModifiers,
     pub(crate) stmts: Box<[StmtKind] /*[Stmt]*/>, // FIXME: switch to stmts
     // FIXME: th last thingy should be either empty or an AstNode
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BlockModifiers {}
 
 // every expression consists of some(or none) statements
 // and at most one expression at its end
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BinaryExprNode {
     pub(crate) lhs: AstNode,
     pub(crate) rhs: AstNode,
     pub(crate) op: BinOp,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CallExprNode {
     pub(crate) callee: String,
     pub(crate) args: Box<[AstNode]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StaticValNode {
     pub(crate) ty: Ty,
     // name is contained within val as its lhs field
@@ -112,7 +112,7 @@ impl StaticValNode {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConstValNode {
     pub(crate) ty: Ty,
     // name is contained within val as its lhs field
@@ -134,7 +134,7 @@ impl ConstValNode {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct FunctionModifiers {
     pub(crate) constness: Constness,
     // extern_abi: Option<String>,
@@ -142,14 +142,14 @@ pub struct FunctionModifiers {
     // is_async: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionNode {
     pub(crate) modifiers: FunctionModifiers,
     pub(crate) header: FunctionHeader,
     pub(crate) body: Block,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionHeader {
     pub(crate) name: String,
     pub(crate) generics: Box<[Generic]>,
@@ -157,27 +157,27 @@ pub struct FunctionHeader {
     pub(crate) ret: Option<Ty>,           // type
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LocalAssign {
     Assign(LAssign),
     DecAssign(LDecAssign),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LAssign {
     pub(crate) name: String,
     pub(crate) val: AstNode,
 }
 
 // LocalDeclareAssignment
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LDecAssign {
     pub(crate) mutability: Option<Mutability>,
     pub(crate) ty: Option<Ty>,
     pub(crate) val: LAssign,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
@@ -185,14 +185,14 @@ pub struct StructDef {
     pub(crate) fields: Box<[StructFieldDef]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructFieldDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
     pub(crate) ty: Ty,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TraitDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
@@ -201,7 +201,7 @@ pub struct TraitDef {
     pub(crate) methods: Box<[FunctionHeader]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AdtImpl {
     pub(crate) ty: Ty,
     pub(crate) impl_trait: Option<Ty>, // this may not be generic
@@ -209,52 +209,52 @@ pub struct AdtImpl {
     pub(crate) methods: Box<[ItemKind]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructConstructor {
     pub(crate) name: String,
     pub(crate) fields: Box<[(String, AstNode)]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Generic {
     Constant(GenericConstant),
     Type(GenericType),
     Lifetime(GenericLifetime),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GenericType {
     pub(crate) name: String,
     pub(crate) required_traits: Box<[Ty]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GenericLifetime {
     pub(crate) lt: Lifetime,
     // pub(crate) constraints: Box<[Lifetime]>, // FIXME: implement this!
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Lifetime {
     Custom(String),
     Static,
     Inferred,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GenericConstant {
     pub(crate) name: String,
     pub(crate) ty: Ty,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Ty {
     pub(crate) kind: TyKind,
     // FIXME: add span
 }
 
 // FIXME: introduce and use TyKind in the future (use smth similar for generics)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TyKind {
     Ref(Box<RefTy>),
     Array(Box<ArrayTy>),
@@ -262,61 +262,61 @@ pub enum TyKind {
     Owned(Box<OwnedTy>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RefTy {
     pub(crate) lt: Option<Lifetime>,
     pub(crate) mutability: Mutability,
     pub(crate) ty: Box<Ty>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OwnedTy {
     pub(crate) name: String,
     pub(crate) generics: Box<[TyOrConstVal]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArrayTy {
     pub(crate) ty: Ty,
     pub(crate) amount: Option<AstNode>,
 }
 
 /// This represents an array instantiation like: [6, 4, 2, 8, 3, 9] or [6; 20]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ArrayInst {
     List(ArrayInstList),
     Short(Box<ArrayInstShort>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArrayInstList {
     pub(crate) vals: Box<[AstNode]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArrayInstShort {
     pub(crate) val: AstNode,
     pub(crate) amount: AstNode,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArrayIndexing {
     pub(crate) array: Path,
     pub(crate) idx_val: AstNode,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Path {
     // FIXME: design this properly!
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TyOrConstVal {
     Ty(Ty),
     ConstVal(AstNode),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum NumberType {
     F32(f32),
     F64(f64),
