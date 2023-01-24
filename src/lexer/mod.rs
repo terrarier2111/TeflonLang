@@ -1,9 +1,32 @@
+use std::sync::Arc;
+use std::thread;
+use crate::datastructures::concurrent_vec::InsertOnlyConcVec;
 use crate::diagnostics::builder::DiagnosticBuilder;
 use crate::diagnostics::span::{FixedTokenSpan, Span};
 use crate::lexer::token::{BinOp, Token};
 use crate::parser::keyword::Keyword;
 
 pub mod token;
+
+pub fn lex_many(mut files: Vec<String>) -> Result<Vec<Vec<Token>>, DiagnosticBuilder> {
+    let mut ret = Arc::new(InsertOnlyConcVec::new(files.len()));
+    let first = files.pop().unwrap();
+    let mut threads = vec![];
+    for file in files {
+        let ret = ret.clone();
+        threads.push(thread::spawn(move || {
+            let result = lex(file).unwrap();
+            ret.push(result);
+        }));
+    }
+    let parsed = lex(first)?;
+    ret.push(parsed);
+
+    threads.into_iter().for_each(|thread| {
+        thread.join().unwrap();
+    });
+    Ok(unsafe { Arc::try_unwrap(ret).unwrap_unchecked() }.to_vec_finished())
+}
 
 pub fn lex(input: String) -> Result<Vec<Token>, DiagnosticBuilder> {
     let input = input.chars().collect::<Vec<_>>();

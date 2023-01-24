@@ -6,9 +6,12 @@ use crate::parser::parser::Parser;
 use crate::parser::token_stream::TokenStream;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Write};
-use std::{env, fs};
+use std::{env, fs, thread};
+use std::sync::Arc;
+use crate::datastructures::concurrent_vec::InsertOnlyConcVec;
 use crate::diagnostics::builder::DiagnosticBuilder;
-use crate::parser::ast::{ItemKind, StmtKind};
+use crate::lexer::lex;
+use crate::parser::ast::{Crate, ItemKind, StmtKind};
 use crate::tyck::{DEFAULT_PATH, Ty, tyck_item};
 
 mod diagnostics;
@@ -16,6 +19,7 @@ mod lexer;
 mod parser;
 mod traitsolver;
 mod tyck;
+mod datastructures;
 
 fn main() {
     let path = env::current_dir().unwrap();
@@ -62,4 +66,36 @@ fn input(text: String) -> std::io::Result<String> {
         }
     }
     Ok(input)
+}
+
+pub fn lex_and_parse_many(mut files: Vec<String>) -> Result<Vec<Crate>, DiagnosticBuilder> {
+    let mut ret = Arc::new(InsertOnlyConcVec::new(files.len()));
+    let first = files.pop().unwrap();
+    let mut threads = vec![];
+    for file in files {
+        let ret = ret.clone();
+        threads.push(thread::spawn(move || {
+            let result = lex(file).map(|tokens| {
+                let mut parser = Parser::new(TokenStream::new(tokens));
+                parser.parse_crate().unwrap()
+            });
+
+            ret.push(result);
+        }));
+    }
+    let parsed = lex(first).map(|tokens| {
+        let mut parser = Parser::new(TokenStream::new(tokens));
+        parser.parse_crate().unwrap()
+    });
+    ret.push(parsed);
+
+    threads.into_iter().for_each(|thread| {
+        thread.join().unwrap();
+    });
+    let ret = unsafe { Arc::try_unwrap(ret).unwrap_unchecked() }.to_vec_finished();
+    let mut ret_new = vec![];
+    for x in ret.into_iter() {
+        ret_new.push(x?);
+    }
+    Ok(ret_new)
 }
