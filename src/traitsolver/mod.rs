@@ -1,4 +1,4 @@
-use crate::parser::ast::Ty;
+use crate::parser::ast::{AstNode, Ty, TyOrConstVal};
 use std::collections::HashMap;
 
 // FIXME: maybe helpful: https://rustc-dev-guide.rust-lang.org/traits/resolution.html
@@ -21,11 +21,82 @@ use std::collections::HashMap;
 // here `i32` is an application with 0 arguments
 
 pub struct TraitManager {
-    known_impls: HashMap<Ty, Vec<Vec<Ty>>>, // known impls maps a ty to a list of lists of obligations
+    /// impl trait for ty
+    /// -> map<simple trait name, (trait, list[any{(ty, generic obligations), obligations}])>
+    impl_constraints: HashMap<String, TraitEntry>,
+    /// map<trait, list[ty]>
+    used_impls: HashMap<Ty, Vec<Ty>>,
+}
+
+struct TraitEntry {
+    tait: Ty,
+    goals: Vec<(GoalTarget, HashMap<String, Vec<Ty>>)>,
+}
+
+pub enum GenericGoalTarget {
+    Val {
+        ty: Ty,
+        generics: Vec<GenericGoalTarget>,
+    },
+    Const {
+        val: AstNode,
+    },
+    Obligation {
+        constraints: Vec<Ty>,
+    },
+}
+
+pub enum GoalTarget {
+    Val {
+        ty: Ty,
+        generics: Vec<GoalTarget>,
+    },
+    Obligation {
+        constraints: Vec<Ty>,
+    },
 }
 
 impl TraitManager {
-    fn insert_impl(&mut self, tait: &Ty, obligations: Vec<Ty>) {
+    pub fn insert_impl(&mut self, tait: &Ty, obligations: GoalTarget, ctx: HashMap<String, Vec<Ty>>) {
         // FIXME: this system is incomplete, how should we handle things like `impl<T: Clone> Trait for Test<T> {`?
+        self.impl_constraints.entry(tait.to_simple_string()).or_insert_with(|| TraitEntry { tait: tait.clone(), goals: vec![] }).goals.push((obligations, ctx));
+    }
+
+    pub fn has_impl(&self, ty: &Ty, tait: &Ty) -> bool {
+        if let Some(ty_val) = self.impl_constraints.get(&tait.to_simple_string()) {
+            'outer: for (imp, ctx) in &ty_val.goals {
+                match &imp {
+                    GoalTarget::Obligation { constraints } => {
+                        for constraint in constraints {
+                            if !self.has_impl(ty, constraint) {
+                                continue 'outer;
+                            }
+                        }
+                        return true;
+                    },
+                    GoalTarget::Val { ty, generics } => {
+                        assert!(ty.kind.get_owned().unwrap().generics.len() == generics.len());
+                        for generic in &ty.kind.get_owned().unwrap().generics {
+                            if !match generic {
+                                TyOrConstVal::ConstVal(val) => todo!(),
+                                // FIXME: we need to be able to check this ty's generics as well!
+                                TyOrConstVal::Ty(generic_ty) => {
+                                    if let Some(val) = generic_ty.kind.get_owned() {
+                                        if let Some(constraints) = ctx.get(&val.name) {
+                                            assert!(val.generics.is_empty());
+                                            
+                                        }
+                                    }
+                                },
+                            } {
+                                continue 'outer;
+                            }
+                        }
+                        return true;
+                    },
+                }
+            }
+        }
+        false
     }
 }

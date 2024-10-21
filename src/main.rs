@@ -20,6 +20,7 @@ mod parser;
 mod traitsolver;
 mod tyck;
 mod datastructures;
+mod const_eval;
 
 fn main() {
     let path = env::current_dir().unwrap();

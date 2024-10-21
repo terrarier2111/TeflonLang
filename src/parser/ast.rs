@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use crate::diagnostics::span::Span;
 use crate::lexer::token::BinOp;
 use crate::parser::attrs::{Constness, Mutability, Visibility};
@@ -27,7 +29,7 @@ impl Crate {
 
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AstNode {
     Number(NumberType),
     Ident(String),
@@ -44,7 +46,7 @@ pub struct Stmt {
     // pub(crate) span: Span, // FIXME: somehow retrieve(and keep) span information
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StmtKind {
     Item(ItemKind),
     LocalAssign(LocalAssign),
@@ -53,7 +55,7 @@ pub enum StmtKind {
     Empty,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ItemKind {
     StaticVal(Box<StaticValNode>),
     ConstVal(Box<ConstValNode>),
@@ -63,33 +65,33 @@ pub enum ItemKind {
     StructImpl(AdtImpl),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
     pub(crate) modifiers: BlockModifiers,
     pub(crate) stmts: Box<[StmtKind] /*[Stmt]*/>, // FIXME: switch to stmts
     // FIXME: th last thingy should be either empty or an AstNode
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockModifiers {}
 
 // every expression consists of some(or none) statements
 // and at most one expression at its end
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BinaryExprNode {
     pub(crate) lhs: AstNode,
     pub(crate) rhs: AstNode,
     pub(crate) op: BinOp,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExprNode {
     pub(crate) callee: String,
     pub(crate) args: Box<[AstNode]>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticValNode {
     pub(crate) ty: Ty,
     // name is contained within val as its lhs field
@@ -112,7 +114,7 @@ impl StaticValNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstValNode {
     pub(crate) ty: Ty,
     // name is contained within val as its lhs field
@@ -134,7 +136,7 @@ impl ConstValNode {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct FunctionModifiers {
     pub(crate) constness: Constness,
     // extern_abi: Option<String>,
@@ -142,14 +144,14 @@ pub struct FunctionModifiers {
     // is_async: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionNode {
     pub(crate) modifiers: FunctionModifiers,
     pub(crate) header: FunctionHeader,
     pub(crate) body: Block,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionHeader {
     pub(crate) name: String,
     pub(crate) generics: Box<[Generic]>,
@@ -157,27 +159,27 @@ pub struct FunctionHeader {
     pub(crate) ret: Option<Ty>,           // type
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocalAssign {
     Assign(LAssign),
     DecAssign(LDecAssign),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LAssign {
     pub(crate) name: String,
     pub(crate) val: AstNode,
 }
 
 // LocalDeclareAssignment
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LDecAssign {
     pub(crate) mutability: Option<Mutability>,
     pub(crate) ty: Option<Ty>,
     pub(crate) val: LAssign,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
@@ -185,14 +187,14 @@ pub struct StructDef {
     pub(crate) fields: Box<[StructFieldDef]>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructFieldDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
     pub(crate) ty: Ty,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitDef {
     pub(crate) visibility: Visibility,
     pub(crate) name: String,
@@ -201,7 +203,7 @@ pub struct TraitDef {
     pub(crate) methods: Box<[FunctionHeader]>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdtImpl {
     pub(crate) ty: Ty,
     pub(crate) impl_trait: Option<Ty>, // this may not be generic
@@ -209,52 +211,82 @@ pub struct AdtImpl {
     pub(crate) methods: Box<[ItemKind]>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructConstructor {
     pub(crate) name: String,
     pub(crate) fields: Box<[(String, AstNode)]>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Generic {
     Constant(GenericConstant),
     Type(GenericType),
     Lifetime(GenericLifetime),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericType {
     pub(crate) name: String,
     pub(crate) required_traits: Box<[Ty]>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericLifetime {
     pub(crate) lt: Lifetime,
     // pub(crate) constraints: Box<[Lifetime]>, // FIXME: implement this!
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lifetime {
     Custom(String),
     Static,
     Inferred,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl Lifetime {
+
+    fn to_string(&self) -> &str {
+        match self {
+            Lifetime::Custom(val) => &val,
+            Lifetime::Static => "static",
+            Lifetime::Inferred => "_",
+        }
+    }
+
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericConstant {
     pub(crate) name: String,
     pub(crate) ty: Ty,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ty {
     pub(crate) kind: TyKind,
     // FIXME: add span
 }
 
+impl Hash for Ty {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.to_string().hash(state);
+    }
+}
+
+impl Ty {
+
+    pub fn to_string(&self) -> String {
+        self.kind.to_string()
+    }
+
+    pub fn to_simple_string(&self) -> String {
+        self.kind.to_simple_string()
+    }
+
+}
+
 // FIXME: introduce and use TyKind in the future (use smth similar for generics)
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TyKind {
     Ref(Box<RefTy>),
     Array(Box<ArrayTy>),
@@ -262,38 +294,133 @@ pub enum TyKind {
     Owned(Box<OwnedTy>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl TyKind {
+
+    pub fn get_generics(&self) -> &[TyOrConstVal] {
+        match self {
+            Self::Ref(rf) => rf.ty.kind.get_generics(),
+            Self::Array(array) => array.ty.kind.get_generics(),
+            Self::Owned(ty) => &ty.generics,
+        }
+    }
+
+    pub fn simple_ty_name(&self) -> String {
+        match self {
+            Self::Ref(rf) => format!("&{}{}{}", if let Some(lt) = rf.lt.as_ref() { if lt == &Lifetime::Static { " 'static" } else { " '_" } } else { "" }, if rf.mutability == Mutability::Mut { " mut" } else { "" }, rf.ty.kind.simple_ty_name()),
+            Self::Array(array) => {
+                let mut raw = "[".to_string();
+                raw.push_str(&self.ty.to_string());
+                if let Some(amount) = &self.amount {
+                    raw.push_str("; ");
+                    // FIXME: print amount!
+                }
+                raw.push(']');
+                raw
+            },
+            Self::Owned(ty) => ty.name.clone(),
+        }
+    }
+
+    pub fn get_owned(&self) -> Option<&OwnedTy> {
+        match self {
+            TyKind::Ref(_) => None,
+            TyKind::Array(_) => None,
+            TyKind::Owned(ty) => Some(&ty),
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            TyKind::Ref(ref_ty) => ref_ty.to_string(),
+            TyKind::Array(array_ty) => array_ty.to_string(),
+            TyKind::Owned(owned_ty) => owned_ty.to_string(),
+        }
+    }
+
+    pub fn to_simple_string(&self) -> String {
+        match self {
+            TyKind::Ref(ref_ty) => ref_ty.to_simple_string(),
+            TyKind::Array(array_ty) => array_ty.to_simple_string(),
+            TyKind::Owned(owned_ty) => owned_ty.to_simple_string(),
+        }
+    }
+
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RefTy {
     pub(crate) lt: Option<Lifetime>,
     pub(crate) mutability: Mutability,
     pub(crate) ty: Box<Ty>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl RefTy {
+
+    fn to_string(&self) -> String {
+        format!("&{}{}{}", if let Some(lt) = &self.lt { format!(" '{}", lt.to_string()) } else { String::new() }, if self.mutability == Mutability::Mut { "mut " } else { "" }, self.ty.to_string())
+    }
+
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedTy {
     pub(crate) name: String,
     pub(crate) generics: Box<[TyOrConstVal]>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl OwnedTy {
+
+    fn to_string(&self) -> String {
+        let mut raw = self.name.clone();
+        if !self.generics.is_empty() {
+            raw.push('<');
+            for val in &self.generics {
+                raw.push_str(&val.to_string());
+                raw.push_str(", ");
+            }
+            raw.pop();
+            raw.pop();
+            raw.push('>');
+        }
+        raw
+    }
+
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArrayTy {
     pub(crate) ty: Ty,
     pub(crate) amount: Option<AstNode>,
 }
 
+impl ArrayTy {
+
+    fn to_string(&self) -> String {
+        let mut raw = "[".to_string();
+        raw.push_str(&self.ty.to_string());
+        if let Some(amount) = &self.amount {
+            raw.push_str("; ");
+            // FIXME: print amount!
+        }
+        raw.push(']');
+        raw
+    }
+
+}
+
 /// This represents an array instantiation like: [6, 4, 2, 8, 3, 9] or [6; 20]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArrayInst {
     List(ArrayInstList),
     Short(Box<ArrayInstShort>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArrayInstList {
     pub(crate) vals: Box<[AstNode]>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArrayInstShort {
     pub(crate) val: AstNode,
     pub(crate) amount: AstNode,
@@ -310,10 +437,21 @@ pub struct Path {
     // FIXME: design this properly!
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TyOrConstVal {
     Ty(Ty),
     ConstVal(AstNode),
+}
+
+impl TyOrConstVal {
+
+    pub fn to_string(&self) -> String {
+        match self {
+            TyOrConstVal::Ty(ty) => ty.to_string(),
+            TyOrConstVal::ConstVal(ast_node) => todo!(),
+        }
+    }
+
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -331,3 +469,6 @@ pub enum NumberType {
     I64(i64),
     I128(i128),
 }
+
+/// FIXME: currently we assume equality for floats
+impl Eq for NumberType {}
