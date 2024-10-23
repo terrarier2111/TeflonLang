@@ -279,9 +279,9 @@ impl Ty {
         self.kind.to_string()
     }
 
-    pub fn to_simple_string(&self) -> String {
+    /*pub fn to_simple_string(&self) -> String {
         self.kind.to_simple_string()
-    }
+    }*/
 
 }
 
@@ -309,8 +309,8 @@ impl TyKind {
             Self::Ref(rf) => format!("&{}{}{}", if let Some(lt) = rf.lt.as_ref() { if lt == &Lifetime::Static { " 'static" } else { " '_" } } else { "" }, if rf.mutability == Mutability::Mut { " mut" } else { "" }, rf.ty.kind.simple_ty_name()),
             Self::Array(array) => {
                 let mut raw = "[".to_string();
-                raw.push_str(&self.ty.to_string());
-                if let Some(amount) = &self.amount {
+                raw.push_str(&array.ty.kind.simple_ty_name());
+                if let Some(amount) = &array.amount {
                     raw.push_str("; ");
                     // FIXME: print amount!
                 }
@@ -337,13 +337,13 @@ impl TyKind {
         }
     }
 
-    pub fn to_simple_string(&self) -> String {
+    /*pub fn to_simple_string(&self) -> String {
         match self {
             TyKind::Ref(ref_ty) => ref_ty.to_simple_string(),
             TyKind::Array(array_ty) => array_ty.to_simple_string(),
             TyKind::Owned(owned_ty) => owned_ty.to_simple_string(),
         }
-    }
+    }*/
 
 }
 

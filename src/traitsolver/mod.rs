@@ -58,14 +58,20 @@ pub enum GoalTarget {
 
 impl TraitManager {
     pub fn insert_impl(&mut self, tait: &Ty, obligations: GoalTarget, ctx: HashMap<String, Vec<Ty>>) {
+        // FIXME: trait Trait<T: Bound1> {}
+        // FIXME: for: impl<K: Bound2> Trait<K> for Ty {}
+        // FIXME: check if Bound2 is at least as strict as Bound1
+        // FIXME: more generally: (check if bounds for generics passed to Tait's generics are at least as strict as the bounds of Tait's generics themselves)
+
         // FIXME: this system is incomplete, how should we handle things like `impl<T: Clone> Trait for Test<T> {`?
-        self.impl_constraints.entry(tait.to_simple_string()).or_insert_with(|| TraitEntry { tait: tait.clone(), goals: vec![] }).goals.push((obligations, ctx));
+        self.impl_constraints.entry(tait.kind.simple_ty_name()).or_insert_with(|| TraitEntry { tait: tait.clone(), goals: vec![] }).goals.push((obligations, ctx));
     }
 
     pub fn has_impl(&self, ty: &Ty, tait: &Ty) -> bool {
-        if let Some(ty_val) = self.impl_constraints.get(&tait.to_simple_string()) {
+        if let Some(ty_val) = self.impl_constraints.get(&tait.to_string()) {
             'outer: for (imp, ctx) in &ty_val.goals {
                 match &imp {
+                    // case: impl<T: X + Y + Z> Trait for T {}
                     GoalTarget::Obligation { constraints } => {
                         for constraint in constraints {
                             if !self.has_impl(ty, constraint) {
@@ -74,23 +80,15 @@ impl TraitManager {
                         }
                         return true;
                     },
-                    GoalTarget::Val { ty, generics } => {
-                        assert!(ty.kind.get_owned().unwrap().generics.len() == generics.len());
-                        for generic in &ty.kind.get_owned().unwrap().generics {
-                            if !match generic {
-                                TyOrConstVal::ConstVal(val) => todo!(),
-                                // FIXME: we need to be able to check this ty's generics as well!
-                                TyOrConstVal::Ty(generic_ty) => {
-                                    if let Some(val) = generic_ty.kind.get_owned() {
-                                        if let Some(constraints) = ctx.get(&val.name) {
-                                            assert!(val.generics.is_empty());
-                                            
-                                        }
-                                    }
-                                },
-                            } {
-                                continue 'outer;
-                            }
+                    // case: impl<T: X + Y + Z, K> Trait for Ty<T, K> {}
+                    GoalTarget::Val { ty: val_ty, generics } => {
+                        assert!(val_ty.kind.get_owned().unwrap().generics.len() == generics.len());
+                        // if parent types don't match then don't even check generics
+                        if val_ty.kind.to_string() != ty.kind.to_string() {
+                            return false;
+                        }
+                        if !self.check_generics(ty, ctx) {
+                            continue 'outer;
                         }
                         return true;
                     },
@@ -98,5 +96,25 @@ impl TraitManager {
             }
         }
         false
+    }
+
+    fn check_generics(&self, ty: &Ty, ctx: &HashMap<String, Vec<Ty>>) -> bool {
+        for generic in &ty.kind.get_owned().unwrap().generics {
+            if !match generic {
+                TyOrConstVal::ConstVal(val) => todo!(),
+                // FIXME: we need to be able to check this ty's generics as well!
+                TyOrConstVal::Ty(generic_ty) => {
+                    if let Some(val) = generic_ty.kind.get_owned() {
+                        if let Some(constraints) = ctx.get(&val.name) {
+                            assert!(val.generics.is_empty());
+                            
+                        }
+                    }
+                },
+            } {
+                return false;
+            }
+        }
+        true
     }
 }
