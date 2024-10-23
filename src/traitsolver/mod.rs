@@ -21,14 +21,24 @@ use std::collections::HashMap;
 // here `i32` is an application with 0 arguments
 
 pub struct TraitManager {
+    // trait Tait: Tait2 + Tait3 {}
+    // this represents a mapping from Tait to a list of [Tait2, Tait3] which are the dependencies of Tait
+    ty_dependencies: HashMap<String, TraitEntry>,
     /// impl trait for ty
     /// -> map<simple trait name, (trait, list[any{(ty, generic obligations), obligations}])>
-    impl_constraints: HashMap<String, TraitEntry>,
+    impl_constraints: HashMap<String, TraitImplEntry>,
+    deferred_checks: HashMap<String, Vec<Ty>>,
     /// map<trait, list[ty]>
     used_impls: HashMap<Ty, Vec<Ty>>,
 }
 
 struct TraitEntry {
+    tait: Ty,
+    dependencies: Vec<Ty>,
+    ctx: HashMap<String, Vec<Ty>>,
+}
+
+struct TraitImplEntry {
     tait: Ty,
     goals: Vec<(GoalTarget, HashMap<String, Vec<Ty>>)>,
 }
@@ -57,6 +67,10 @@ pub enum GoalTarget {
 }
 
 impl TraitManager {
+    pub fn insert_trait(&mut self, tait: Ty, dependencies: Vec<Ty>, ctx: HashMap<String, Vec<Ty>>) {
+        self.ty_dependencies.insert(tait.kind.simple_ty_name(), v);
+    }
+
     pub fn insert_impl(&mut self, tait: &Ty, obligations: GoalTarget, ctx: HashMap<String, Vec<Ty>>) {
         // FIXME: trait Trait<T: Bound1> {}
         // FIXME: for: impl<K: Bound2> Trait<K> for Ty {}
@@ -64,11 +78,13 @@ impl TraitManager {
         // FIXME: more generally: (check if bounds for generics passed to Tait's generics are at least as strict as the bounds of Tait's generics themselves)
 
         // FIXME: this system is incomplete, how should we handle things like `impl<T: Clone> Trait for Test<T> {`?
-        self.impl_constraints.entry(tait.kind.simple_ty_name()).or_insert_with(|| TraitEntry { tait: tait.clone(), goals: vec![] }).goals.push((obligations, ctx));
+        self.impl_constraints.entry(tait.kind.simple_ty_name()).or_insert_with(|| TraitImplEntry { tait: tait.clone(), goals: vec![] }).goals.push((obligations, ctx));
     }
 
     pub fn has_impl(&self, ty: &Ty, tait: &Ty) -> bool {
-        if let Some(ty_val) = self.impl_constraints.get(&tait.to_string()) {
+        // we use `simple_ty_name` instead of `to_string` because we need to ignore the naming of generics in case of
+        // impl<K> Trait<K> for Ty {}
+        if let Some(ty_val) = self.impl_constraints.get(&tait.kind.simple_ty_name()) {
             'outer: for (imp, ctx) in &ty_val.goals {
                 match &imp {
                     // case: impl<T: X + Y + Z> Trait for T {}
@@ -84,7 +100,7 @@ impl TraitManager {
                     GoalTarget::Val { ty: val_ty, generics } => {
                         assert!(val_ty.kind.get_owned().unwrap().generics.len() == generics.len());
                         // if parent types don't match then don't even check generics
-                        if val_ty.kind.to_string() != ty.kind.to_string() {
+                        if val_ty.kind.simple_ty_name() != ty.kind.simple_ty_name() {
                             return false;
                         }
                         if !self.check_generics(ty, ctx) {
